@@ -1,0 +1,57 @@
+{
+  "name": "Kairos Igreja — Gestão Eclesiástica",
+  "short_name": "Kairos Igreja",
+  "description": "Sistema de gestão pastoral — membros, células, ministérios, eventos, finanças",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f5f0",
+  "theme_color": "#5a5a40",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "/logo-kairos.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-kairos.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-kairos.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Membros",
+      "short_name": "Membros",
+      "description": "Cadastro de membros da igreja",
+      "url": "/?view=membros",
+      "icons": [{ "src": "/logo-kairos.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Agenda",
+      "short_name": "Agenda",
+      "description": "Eventos e escalas",
+      "url": "/?view=eventos",
+      "icons": [{ "src": "/logo-kairos.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Política de Privacidade",
+      "short_name": "LGPD",
+      "description": "Seus direitos e como tratamos seus dados",
+      "url": "/privacidade",
+      "icons": [{ "src": "/logo-kairos.png", "sizes": "192x192" }]
+    }
+  ]
+}
