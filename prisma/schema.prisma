@@ -1,0 +1,806 @@
+// Prisma Schema — Kairos Igreja
+// Provider: PostgreSQL (kairos-shared-pg do Dokploy)
+// A connection string fica em prisma.config.ts (Prisma 7)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// TENANT (Multi-tenant)
+// ============================================================
+model Tenant {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  logo      String?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // ─── Billing (Asaas) ─────────────────────────────────
+  trialEndsAt         DateTime? // 10 dias após createdAt por padrão
+  subscriptionStatus  String    @default("TRIAL") // TRIAL | ACTIVE | OVERDUE | CANCELLED | EXPIRED
+  subscriptionEndsAt  DateTime?
+  asaasCustomerId     String?
+  asaasSubscriptionId String?
+  planKey             String    @default("BASICO") // BASICO | PRO
+  // ─── Dados comerciais da igreja ──────────────────────
+  cnpj                String? // CNPJ (14 dígitos, validado no backend)
+  telefone            String?
+  email               String? // email de contato (pode ser ≠ do admin)
+  endereco            String?
+  // ─── Controle de bloqueio manual ────────────────────
+  diasTolerancia      Int       @default(3) // dias de grace após vencimento
+  motivoBloqueio      String? // texto livre preenchido pelo Super Admin
+  bloqueadoEm         DateTime? // quando foi bloqueado manualmente
+  bloqueadoPor        String? // id do Super Admin que bloqueou (audit)
+
+  users                User[]
+  congregations        Congregation[]
+  members              Member[]
+  celulas              Celula[]
+  ministries           Ministry[]
+  events               Event[]
+  finances             FinancialTransaction[]
+  prayers              PrayerRequest[]
+  sermons              Sermon[]
+  volunteers           VolunteerRoster[]
+  murals               MuralNotice[]
+  chats                ChatMessage[]
+  assets               Asset[]
+  backups              Backup[]
+  conversations        ChatConversation[]
+  documents            Document[]
+  payments             AsaasPayment[]
+  auditLogs            AuditLog[]
+  // OBPC QR Code Presenca
+  obpcEvents           ObpcEvent[]
+  obpcAttendances      ObpcAttendance[]
+  obpcCourses          ObpcCourse[]
+  obpcEnrollments      ObpcCourseEnrollment[]
+  obpcClasses          ObpcCourseClass[]
+  obpcClassAttendances ObpcCourseClassAttendance[]
+}
+
+// ============================================================
+// OBPC — Sistema de Cadastro e Presença de Obreiros (QR Code)
+// ============================================================
+
+enum ObpcMemberRole {
+  PASTOR
+  PRESBITERO
+  EVANGELISTA
+  MISSIONARIA
+  DIACONO
+  DIACONISA
+  MEMBRO
+}
+
+enum ObpcCandidateTarget {
+  MISSIONARIO
+  PRESBITERO
+  EVANGELISTA
+  DIACONO
+  DIACONISA
+  OBREIRO
+}
+
+enum ObpcMemberStatus {
+  ATIVO
+  INATIVO
+  CANDIDATO
+  EM_FORMACAO
+  TRANSFERIDO
+  DESLIGADO
+}
+
+enum ObpcEventStatus {
+  ABERTO
+  ENCERRADO
+  CANCELADO
+}
+
+enum ObpcCandidateStatus {
+  INSCRITO
+  EM_FORMACAO
+  CONCLUIDO
+  APROVADO
+  REPROVADO
+  SUSPENSO
+  CONSAGRADO
+  ARQUIVADO
+}
+
+enum ObpcClassAttendanceStatus {
+  PRESENTE
+  FALTA
+  JUSTIFICADO
+}
+
+model ObpcEvent {
+  id             String          @id @default(uuid())
+  tenantId       String
+  congregationId String?
+  name           String // ex: "Reunião de Obreiros"
+  description    String?
+  date           DateTime
+  time           String? // "19:30"
+  location       String?
+  hostChurch     String? // igreja responsável (sede)
+  status         ObpcEventStatus @default(ABERTO)
+  qrToken        String?         @unique // token único do QR Code do evento (gerado ao abrir)
+  qrRotatedAt    DateTime? // quando o token foi rotacionado pela última vez
+  startedAt      DateTime? // quando foi aberto
+  closedAt       DateTime? // quando foi encerrado
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  congregation Congregation?    @relation(fields: [congregationId], references: [id])
+  attendances  ObpcAttendance[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([date])
+  @@index([qrToken])
+  @@index([congregationId])
+}
+
+model ObpcAttendance {
+  id         String   @id @default(uuid())
+  tenantId   String
+  eventId    String
+  memberId   String? // null = cadastro rápido recém-criado
+  memberName String // denormalizado p/ histórico caso membro seja deletado
+  memberRole String? // função eclesiástica no momento
+  churchName String? // igreja/congregação
+  method     String   @default("qrcode") // qrcode, manual
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id])
+  event  ObpcEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member?   @relation(fields: [memberId], references: [id])
+
+  @@unique([eventId, memberId]) // 1 presença por pessoa por evento
+  @@index([tenantId])
+  @@index([eventId])
+  @@index([memberId])
+  @@index([createdAt])
+}
+
+model ObpcCourse {
+  id          String               @id @default(uuid())
+  tenantId    String
+  name        String // ex: "Curso para Presbíteros"
+  description String?
+  category    String? // OBREIRO / DIACONO / DIACONISA / EVANGELISTA / PRESBITERO / MISSIONARIO
+  target      ObpcCandidateTarget?
+  teacher     String? // professor/responsável
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String               @default("ativo") // ativo, encerrado, cancelado
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id])
+  enrollments ObpcCourseEnrollment[]
+  classes     ObpcCourseClass[]
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model ObpcCourseEnrollment {
+  id             String              @id @default(uuid())
+  tenantId       String
+  courseId       String
+  // Dados do candidato (pode ser membro ou cadastro avulso)
+  memberId       String? // se for membro cadastrado
+  candidateName  String
+  candidatePhone String?
+  churchName     String?
+  startDate      DateTime            @default(now())
+  status         ObpcCandidateStatus @default(INSCRITO)
+  notes          String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  deletedAt      DateTime?
+
+  tenant  Tenant                      @relation(fields: [tenantId], references: [id])
+  course  ObpcCourse                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  member  Member?                     @relation(fields: [memberId], references: [id])
+  classes ObpcCourseClassAttendance[]
+
+  @@unique([courseId, memberId])
+  @@index([tenantId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model ObpcCourseClass {
+  id          String    @id @default(uuid())
+  tenantId    String
+  courseId    String
+  title       String? // "Aula 1 - Fundamentos"
+  classNumber Int       @default(1)
+  date        DateTime
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tenant      Tenant                      @relation(fields: [tenantId], references: [id])
+  course      ObpcCourse                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attendances ObpcCourseClassAttendance[]
+
+  @@index([tenantId])
+  @@index([courseId])
+  @@index([date])
+}
+
+model ObpcCourseClassAttendance {
+  id           String                    @id @default(uuid())
+  tenantId     String
+  classId      String
+  enrollmentId String
+  status       ObpcClassAttendanceStatus @default(PRESENTE)
+  notes        String?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  tenant     Tenant               @relation(fields: [tenantId], references: [id])
+  class_     ObpcCourseClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  enrollment ObpcCourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, enrollmentId])
+  @@index([tenantId])
+  @@index([classId])
+  @@index([enrollmentId])
+}
+
+// ============================================================
+// USUÁRIO + AUTENTICAÇÃO
+// ============================================================
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  GERENTE
+  OPERADOR
+  USUARIO
+}
+
+model User {
+  id             String    @id @default(uuid())
+  tenantId       String
+  congregationId String? // null = admin/super_admin que ve tudo
+  name           String
+  email          String    @unique
+  passwordHash   String
+  role           Role      @default(USUARIO)
+  active         Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  congregation Congregation? @relation("UserCongregation", fields: [congregationId], references: [id])
+  sessions     Session[]
+
+  conversationsA    ChatConversation[] @relation("ParticipantA")
+  conversationsB    ChatConversation[] @relation("ParticipantB")
+  chatMessages      ChatMessage[]
+  documentsUploaded Document[]
+
+  @@index([tenantId])
+  @@index([congregationId])
+  @@index([email])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ============================================================
+// CONGREGAÇÃO
+// ============================================================
+model Congregation {
+  id         String    @id @default(uuid())
+  tenantId   String
+  name       String
+  address    String?
+  phone      String?
+  pastorName String?
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  members    Member[]
+  celulas    Celula[]
+  users      User[]      @relation("UserCongregation")
+  events     Event[]
+  obpcEvents ObpcEvent[]
+
+  @@index([tenantId])
+  @@index([active])
+}
+
+// ============================================================
+// MEMBRO
+// ============================================================
+model Member {
+  id                     String    @id @default(uuid())
+  tenantId               String
+  congregationId         String?
+  name                   String
+  email                  String?
+  phone                  String?
+  birthDate              DateTime?
+  address                String?
+  maritalStatus          String?
+  baptized               Boolean   @default(false)
+  memberSince            DateTime?
+  photoUrl               String?
+  notes                  String?
+  // Campos ricos do app (cadastro pastoral completo)
+  status                 String    @default("membro")
+  role                   String?
+  cpf                    String?
+  filiation              String?
+  cardValidity           DateTime?
+  baptismDate            DateTime?
+  celulaId               String?
+  ministries             String?
+  joinedAt               DateTime  @default(now())
+  active                 Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  deletedAt              DateTime?
+  // ==========================================
+  // LGPD (Lei Geral de Proteção de Dados)
+  // ==========================================
+  consentAcceptedAt      DateTime? // data/hora que aceitou o termo
+  consentTermsVersion    String? // versão do termo aceito (ex: "v1.0-2026-08-22")
+  dataExclusaoSolicitada DateTime? // direito ao esquecimento (Art. 18, VI)
+  motivoExclusao         String? // motivo opcional informado pelo titular
+
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id])
+  congregation    Congregation?          @relation(fields: [congregationId], references: [id])
+  documents       Document[]
+  // OBPC relations
+  obpcAttendances ObpcAttendance[]
+  obpcEnrollments ObpcCourseEnrollment[]
+
+  @@index([tenantId])
+  @@index([congregationId])
+  @@index([active])
+  @@index([name])
+  @@index([status])
+  @@index([consentAcceptedAt])
+}
+
+// ============================================================
+// CÉLULA (Pequeno Grupo)
+// ============================================================
+model Celula {
+  id             String    @id @default(uuid())
+  tenantId       String
+  congregationId String?
+  name           String
+  leaderName     String?
+  meetingDay     String?
+  meetingTime    String?
+  address        String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  congregation Congregation? @relation(fields: [congregationId], references: [id])
+
+  @@index([tenantId])
+  @@index([congregationId])
+}
+
+// ============================================================
+// MINISTÉRIO
+// ============================================================
+model Ministry {
+  id          String    @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?
+  leaderName  String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ============================================================
+// EVENTO
+// ============================================================
+model Event {
+  id              String    @id @default(uuid())
+  tenantId        String
+  congregationId  String?
+  title           String
+  description     String?
+  date            DateTime
+  time            String?
+  location        String?
+  type            String? // culto, conferência, ensaio, etc
+  speaker         String?
+  capacity        Int?
+  registeredCount Int       @default(0)
+  bannerUrl       String?
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  congregation Congregation? @relation(fields: [congregationId], references: [id])
+
+  @@index([tenantId])
+  @@index([date])
+  @@index([active])
+  @@index([congregationId])
+}
+
+// ============================================================
+// FINANÇAS
+// ============================================================
+enum TransactionType {
+  ENTRADA
+  SAIDA
+}
+
+model FinancialTransaction {
+  id          String          @id @default(uuid())
+  tenantId    String
+  type        TransactionType
+  description String
+  amount      Float
+  category    String?
+  date        DateTime
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([date])
+  @@index([type])
+}
+
+// ============================================================
+// ORAÇÃO
+// ============================================================
+model PrayerRequest {
+  id        String    @id @default(uuid())
+  tenantId  String
+  name      String
+  title     String? // titulo opcional (ex: "Saude da mae")
+  request   String
+  category  String? // saude, familia, financas, espiritual, trabalho, outro
+  answered  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([category])
+}
+
+// ============================================================
+// SERMÃO
+// ============================================================
+model Sermon {
+  id            String    @id @default(uuid())
+  tenantId      String
+  title         String
+  passage       String?
+  theme         String?
+  audience      String?
+  introduction  String?
+  conclusion    String?
+  prayer        String?
+  content       String? // JSON com mainPoints
+  isAIGenerated Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// VOLUNTÁRIOS
+// ============================================================
+model VolunteerRoster {
+  id        String    @id @default(uuid())
+  tenantId  String
+  name      String
+  ministry  String?
+  role      String?
+  schedule  String? // JSON
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ============================================================
+// MURAL DE AVISOS
+// ============================================================
+model MuralNotice {
+  id         String    @id @default(uuid())
+  tenantId   String
+  title      String
+  content    String
+  category   String? // pastoral, aviso, jovens, urgente, eventos
+  priority   String    @default("normal") // normal, alta, urgente
+  isPinned   Boolean   @default(false)
+  authorName String?
+  authorRole String?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([createdAt])
+  @@index([category])
+  @@index([priority])
+}
+
+// ============================================================
+// CHAT — DM 1:1 (estilo WhatsApp)
+// ============================================================
+model ChatConversation {
+  id            String   @id @default(uuid())
+  tenantId      String
+  userAId       String
+  userBId       String
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  userA    User          @relation("ParticipantA", fields: [userAId], references: [id])
+  userB    User          @relation("ParticipantB", fields: [userBId], references: [id])
+  messages ChatMessage[]
+
+  @@unique([userAId, userBId])
+  @@index([tenantId])
+  @@index([userAId])
+  @@index([userBId])
+  @@index([lastMessageAt])
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid())
+  tenantId       String
+  conversationId String
+  senderId       String
+  content        String
+  readByReceiver Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  conversation ChatConversation @relation(fields: [conversationId], references: [id])
+  sender       User             @relation(fields: [senderId], references: [id])
+
+  @@index([tenantId])
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// ASSETS (Arquivos)
+// ============================================================
+model Asset {
+  id             String    @id @default(uuid())
+  tenantId       String
+  name           String
+  type           String // image, document, mobilia, som, etc
+  url            String
+  size           Int?
+  category       String? // Categoria legada (mobilia, som, instrumento, ti, etc)
+  condition      String? // Estado de conservacao
+  estimatedValue Float?
+  location       String? // Onde esta guardado
+  notes          String?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ============================================================
+// DOCUMENTOS (certidões, crachás, manuais, etc)
+// ============================================================
+enum DocumentType {
+  BATISMO
+  OBREIRO
+  CRACHA
+  EQUIPAMENTO
+  OUTRO
+}
+
+model Document {
+  id           String       @id @default(uuid())
+  tenantId     String
+  memberId     String? // null = documento solto (ex: manual de impressora)
+  uploadedById String // quem fez upload
+  title        String
+  description  String?
+  type         DocumentType @default(OUTRO)
+  url          String // caminho /uploads/<tenantId>/<arquivo>
+  fileName     String // nome original
+  fileSize     Int // bytes
+  mimeType     String
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+
+  tenant     Tenant  @relation(fields: [tenantId], references: [id])
+  member     Member? @relation(fields: [memberId], references: [id])
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
+
+  @@index([tenantId])
+  @@index([memberId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================================
+// BACKUP
+// ============================================================
+model Backup {
+  id        String    @id @default(uuid())
+  tenantId  String
+  filename  String
+  size      Int
+  type      String    @default("local") // local, gdrive, onedrive, s3
+  path      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// BILLING — Asaas (cobrança da PLATAFORMA ao tenant)
+// ============================================================
+enum AsaasPaymentType {
+  SUBSCRIPTION // assinatura recorrente (cartão)
+  PIX // pagamento avulso (pix)
+  UNKNOWN
+}
+
+enum AsaasPaymentStatus {
+  PENDING
+  RECEIVED
+  OVERDUE
+  REFUNDED
+  CANCELLED
+  UNKNOWN
+}
+
+model AsaasPayment {
+  id                  String             @id @default(uuid())
+  tenantId            String
+  type                AsaasPaymentType
+  status              AsaasPaymentStatus @default(PENDING)
+  // IDs externos do Asaas
+  asaasCustomerId     String?
+  asaasPaymentId      String? // ID da cobrança avulsa (Pix) ou da parcela da assinatura
+  asaasSubscriptionId String?
+  // Valores
+  value               Float
+  netValue            Float?
+  description         String
+  cycle               String? // MONTHLY, YEARLY (apenas subscription)
+  dueDate             DateTime
+  paidAt              DateTime?
+  // PIX específico
+  pixQrCodeId         String?
+  pixQrCode           String? // Base64 da imagem
+  pixCopyPaste        String? // Linha copia-e-cola
+  pixExpiresAt        DateTime?
+  // URL de checkout (cartão)
+  invoiceUrl          String? // URL para o cliente pagar a fatura
+  // Controle
+  raw                 Json? // payload completo do Asaas pra auditoria
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  deletedAt           DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([asaasSubscriptionId])
+  @@index([asaasPaymentId])
+}
+
+// ==========================================
+// LGPD — Audit Log (rastreabilidade de acesso a dados pessoais)
+// Art. 37 LGPD: o controlador deve manter registro das operacoes de tratamento
+// ==========================================
+model AuditLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  // Quem fez
+  actorUserId String? // user.id que fez a acao (null = acao do sistema)
+  actorEmail  String? // denormalizado pra auditoria (mesmo se user for deletado)
+  // Sobre quem (titular dos dados)
+  subjectType String // "member" | "user" | "tenant" | etc
+  subjectId   String
+  // O que
+  action      String // "READ" | "CREATE" | "UPDATE" | "DELETE" | "EXPORT" | "CONSENT" | "DELETION_REQUEST"
+  details     String? // JSON com contexto
+  // Onde
+  ip          String?
+  userAgent   String?
+  // Quando
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([subjectType, subjectId])
+  @@index([actorUserId])
+  @@index([createdAt])
+}
