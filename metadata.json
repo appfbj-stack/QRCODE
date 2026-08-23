@@ -1,0 +1,6 @@
+{
+  "name": "Kairos - Gestão Eclesiástica",
+  "description": "Sistema moderno e completo para gestão de igrejas: membros, células, congregações, ministérios, eventos, finanças, oração, sermões, voluntários, mural de avisos e chat comunitário.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

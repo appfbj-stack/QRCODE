@@ -1,0 +1,35 @@
+services:
+  qrcode-app:
+    build: .
+    container_name: qrcode-obreiros-app
+    restart: unless-stopped
+    ports:
+      - "3013:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # JWT secret (sempre via env no Dokploy/Caddy; nunca commitar valor real)
+      - JWT_SECRET=${JWT_SECRET}
+      - APP_URL=${APP_URL:-https://example.com}
+      # Conexão com o Postgres (via env)
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - qrcode-obreiros-backups:/app/backups
+    networks:
+      - bridge
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  qrcode-obreiros-backups:
+    name: qrcode-obreiros-backups
+
+# Conecta à rede `bridge` (default) onde está o Postgres compartilhado
+networks:
+  bridge:
+    name: bridge
+    external: true

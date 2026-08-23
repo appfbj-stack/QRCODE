@@ -1,0 +1,7 @@
+# railway.toml — força o uso do Dockerfile custom
+# (Dokploy é baseado no Railway e respeita este arquivo)
+# Evita que o Dokploy tente usar Nixpacks + bun + caddy automaticamente
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
