@@ -349,8 +349,18 @@ function AppInner() {
   }, [logout]);
 
   useEffect(() => {
-    if (user) loadAll();
-  }, [user, loadAll]);
+    if (user) {
+      // QRCODE: carregar só o estritamente necessário; evita chamadas que possam falhar
+      // (em vez de loadAll() que faz 13 requests em paralelo)
+      Promise.allSettled([
+        dataService.list<any>('congregations', { limit: 200 }),
+      ]).then((results) => {
+        const ok = results.find((r) => r.status === 'fulfilled') as any;
+        if (ok) setCongregations(ok.value?.data || []);
+        setLoadingData(false);
+      }).catch(() => setLoadingData(false));
+    }
+  }, [user]);
 
   // Escuta bloqueio por billing expirado
   useEffect(() => {
