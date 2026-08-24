@@ -55,4 +55,19 @@ router.post(
   })
 );
 
+// POST /api/auth/auto-login
+// Acesso SEM senha — apenas quando OPEN_ACCESS=true no servidor.
+// Usado pra demos e pra rodar o QRCODE sem precisar de login.
+router.post(
+  "/auto-login",
+  asyncHandler(async (_req: Request, res: Response) => {
+    if (process.env.OPEN_ACCESS !== "true") {
+      res.status(404).json({ success: false, error: "Endpoint não disponível" });
+      return;
+    }
+    const result = await AuthService.autoLogin();
+    res.json({ success: true, data: result });
+  })
+);
+
 export const authRoutes = router;

@@ -114,4 +114,65 @@ export class AuthService {
       },
     });
   }
+
+  /**
+   * Auto-login SEM senha — somente quando OPEN_ACCESS=true.
+   * Procura o admin do tenant padrão (primeiro ADMIN ativo) e gera token.
+   * Usado pelo QRCODE pra acesso rápido sem login.
+   */
+  static async autoLogin() {
+    if (process.env.OPEN_ACCESS !== "true") {
+      throw new Error("Acesso direto desabilitado");
+    }
+    const user = await prisma.user.findFirst({
+      where: {
+        role: { in: ["ADMIN", "SUPER_ADMIN"] },
+        active: true,
+        deletedAt: null,
+      },
+      include: { tenant: true, congregation: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!user) throw new Error("Nenhum admin disponível pra auto-login");
+
+    const payload: AuthPayload = {
+      userId: user.id,
+      tenantId: user.tenantId,
+      congregationId: user.congregationId ?? null,
+      role: user.role as AuthPayload["role"],
+      email: user.email,
+      name: user.name,
+    };
+    const token = jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN as any });
+    await prisma.session.create({
+      data: {
+        userId: user.id,
+        token,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+    return {
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        congregationId: user.congregationId ?? null,
+        congregationName: user.congregation?.name ?? null,
+        tenant: {
+          id: user.tenant.id,
+          name: user.tenant.name,
+          slug: user.tenant.slug,
+          subscriptionStatus: user.tenant.subscriptionStatus,
+          trialEndsAt: user.tenant.trialEndsAt,
+          subscriptionEndsAt: user.tenant.subscriptionEndsAt,
+        },
+      },
+    };
+  }
 }

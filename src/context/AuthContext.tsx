@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { getToken, getStoredUser, clearAuth, login as apiLogin } from "../services/api";
+import { getToken, getStoredUser, clearAuth, setAuth, login as apiLogin } from "../services/api";
 
 interface AuthUser {
   id: string;
@@ -31,7 +31,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d?.success) setUser(d.data); else { clearAuth(); setUser(null); setToken(null); } })
         .catch(() => {});
+      return;
     }
+    // Sem token — tenta auto-login (somente se backend permitir via OPEN_ACCESS=true)
+    fetch("/api/auth/auto-login", { method: "POST" })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.success) {
+          setAuth(d.data.token, d.data.user);
+          setUser(d.data.user);
+          setToken(d.data.token);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const login = async (email: string, password: string) => {
