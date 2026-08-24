@@ -77,6 +77,43 @@ router.get(
   })
 );
 
+// GET /public/event/:token/stats — snapshot inicial pro telão
+// (presenças, contadores por função/igreja) — SÓ DO EVENTO DESSE TOKEN
+router.get(
+  "/event/:token/stats",
+  asyncHandler(async (req: Request, res: Response) => {
+    const ev = await prisma.obpcEvent.findFirst({
+      where: { qrToken: req.params.token, deletedAt: null },
+    });
+    if (!ev) return res.status(404).json({ success: false, error: "QR inválido" });
+
+    const attendances = await prisma.obpcAttendance.findMany({
+      where: { eventId: ev.id },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const byRole: Record<string, number> = {};
+    const byChurch: Record<string, number> = {};
+    for (const a of attendances) {
+      const role = (a.memberRole || "MEMBRO").toString();
+      byRole[role] = (byRole[role] || 0) + 1;
+      const ch = (a.churchName || "—").toString();
+      byChurch[ch] = (byChurch[ch] || 0) + 1;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        event: { id: ev.id, name: ev.name, status: ev.status, date: ev.date, time: ev.time, hostChurch: ev.hostChurch },
+        total: attendances.length,
+        byRole,
+        byChurch,
+        recent: attendances.slice(-10).reverse(),
+      },
+    });
+  })
+);
+
 // GET /public/members/lookup?q=&token= — autocomplete
 router.get(
   "/members/lookup",
