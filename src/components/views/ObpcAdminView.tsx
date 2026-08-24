@@ -118,10 +118,11 @@ export const ObpcAdminView: React.FC = () => {
   const loadEvents = async () => {
     try {
       setLoading(true);
-      const data = await api<{ data: ObpcEvent[]; total: number }>(
+      // api() já extrai data.data do envelope. O backend retorna o array direto em `data`.
+      const data = await api<ObpcEvent[]>(
         `/obpc/events?limit=100${statusFilter !== "all" ? `&status=${statusFilter}` : ""}`
       );
-      setEvents(data.data);
+      setEvents(Array.isArray(data) ? data : []);
       setError(null);
     } catch (e: any) {
       setError(e.message || "Erro ao carregar");
