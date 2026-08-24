@@ -47,6 +47,8 @@ async function startServer() {
   const ALLOWED_ORIGINS = [
     "https://igrejasede.fbautomacao.space",
     "https://www.igrejasede.fbautomacao.space",
+    "https://qrcode.fbautomacao.space",
+    "https://www.qrcode.fbautomacao.space",
     "http://localhost:3000",
     "http://localhost:3007",
     "http://localhost:5173",
