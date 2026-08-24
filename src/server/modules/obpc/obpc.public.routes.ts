@@ -114,6 +114,62 @@ router.get(
   })
 );
 
+// GET /public/congregations?token= — lista igrejas do tenant (pro dropdown do check-in)
+router.get(
+  "/congregations",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { token } = req.query as Record<string, string | undefined>;
+    if (!token) return res.status(400).json({ success: false, error: "token obrigatório" });
+    const ev = await prisma.obpcEvent.findFirst({
+      where: { qrToken: token, deletedAt: null },
+    });
+    if (!ev) return res.status(404).json({ success: false, error: "QR inválido" });
+
+    const congregations = await prisma.congregation.findMany({
+      where: { tenantId: ev.tenantId, deletedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, city: true, state: true },
+    });
+    res.json({ success: true, data: congregations });
+  })
+);
+
+// POST /public/congregations — cadastra nova igreja na hora
+router.post(
+  "/congregations",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { token, name, city, state } = req.body || {};
+    if (!token || !name) {
+      return res.status(400).json({ success: false, error: "token e name são obrigatórios" });
+    }
+    const ev = await prisma.obpcEvent.findFirst({
+      where: { qrToken: token, deletedAt: null },
+    });
+    if (!ev) return res.status(404).json({ success: false, error: "QR inválido" });
+
+    const trimmed = String(name).trim();
+    if (!trimmed) return res.status(400).json({ success: false, error: "Nome vazio" });
+
+    // Se já existe (case-insensitive) no mesmo tenant, retorna o existente (idempotente)
+    const existing = await prisma.congregation.findFirst({
+      where: { tenantId: ev.tenantId, deletedAt: null, name: { equals: trimmed, mode: "insensitive" } },
+    });
+    if (existing) {
+      return res.json({ success: true, data: existing, alreadyExists: true });
+    }
+
+    const created = await prisma.congregation.create({
+      data: {
+        tenantId: ev.tenantId,
+        name: trimmed,
+        city: city || null,
+        state: state || null,
+      },
+    });
+    res.status(201).json({ success: true, data: created });
+  })
+);
+
 // GET /public/members/lookup?q=&token= — autocomplete
 router.get(
   "/members/lookup",
@@ -174,12 +230,33 @@ router.post(
       return res.status(400).json({ success: false, error: "Evento não está aberto para check-in" });
     }
 
+    // Se o usuário informou uma igreja, busca ou cria no cadastro do tenant
+    let congregationId: string | null = null;
+    let finalChurchName: string | null = null;
+    const churchTrim = (churchName || "").trim();
+    if (churchTrim) {
+      const existing = await prisma.congregation.findFirst({
+        where: { tenantId: ev.tenantId, deletedAt: null, name: { equals: churchTrim, mode: "insensitive" } },
+      });
+      if (existing) {
+        congregationId = existing.id;
+        finalChurchName = existing.name;
+      } else {
+        const created = await prisma.congregation.create({
+          data: { tenantId: ev.tenantId, name: churchTrim },
+        });
+        congregationId = created.id;
+        finalChurchName = created.name;
+      }
+    }
+
     const member = await prisma.member.create({
       data: {
         tenantId: ev.tenantId,
         name,
         phone: phone || null,
         role: role || "MEMBRO",
+        congregationId,
         status: "membro",
         active: true,
         consentAcceptedAt: new Date(),
@@ -195,20 +272,20 @@ router.post(
           memberId: member.id,
           memberName: member.name,
           memberRole: member.role || "MEMBRO",
-          churchName: churchName || null,
+          churchName: finalChurchName,
           method: "qrcode-quick",
           ip: req.ip || null,
           userAgent: req.headers["user-agent"]?.toString().slice(0, 200) || null,
         },
       });
       obpcBus.emitCheckin(ev.id, { type: "checkin", eventId: ev.id, attendance: att });
-      res.status(201).json({ success: true, data: { member, attendance: att } });
+      res.status(201).json({ success: true, data: { member, attendance: att, congregationId } });
     } catch (e: any) {
       const existing = await prisma.obpcAttendance.findFirst({
         where: { eventId: ev.id, memberId: member.id },
       });
       if (existing) {
-        return res.json({ success: true, data: { member, attendance: existing }, alreadyCheckedIn: true });
+        return res.json({ success: true, data: { member, attendance: existing, congregationId }, alreadyCheckedIn: true });
       }
       throw e;
     }

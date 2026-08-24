@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  CheckCircle2, X, AlertCircle, Loader2, User, Search, Phone, Church, MapPin, Calendar, Clock, Shield,
+  CheckCircle2, X, AlertCircle, Loader2, User, Search, Phone, Church, MapPin, Calendar, Clock, Shield, Plus, ChevronDown,
 } from "lucide-react";
 
 interface EventInfo {
@@ -29,6 +29,13 @@ interface MemberHit {
   name: string;
   role: string;
   congregationName: string | null;
+}
+
+interface Congregation {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string | null;
 }
 
 type Step = "loading" | "ready" | "searching" | "selected" | "registering" | "confirmed" | "denied" | "already";
@@ -52,6 +59,10 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
   const [registerPhone, setRegisterPhone] = useState("");
   const [registerRole, setRegisterRole] = useState("MEMBRO");
   const [registerChurch, setRegisterChurch] = useState("");
+  const [churchMode, setChurchMode] = useState<"select" | "new">("select");
+  const [newChurchName, setNewChurchName] = useState("");
+  const [congregations, setCongregations] = useState<Congregation[]>([]);
+  const [loadingCongregations, setLoadingCongregations] = useState(false);
   const [acceptLgpd, setAcceptLgpd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmedAt, setConfirmedAt] = useState<string | null>(null);
@@ -95,6 +106,22 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
     return () => clearTimeout(t);
   }, [search, step, token]);
 
+  // Carrega congregações quando entra em "registering"
+  useEffect(() => {
+    if (step !== "registering") return;
+    if (congregations.length > 0) return; // já carregou
+    setLoadingCongregations(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/obpc/public/congregations?token=${token}`);
+        const data = await res.json();
+        if (data.success) setCongregations(data.data);
+      } catch {} finally {
+        setLoadingCongregations(false);
+      }
+    })();
+  }, [step, token, congregations.length]);
+
   const confirm = async (memberId: string) => {
     setSubmitting(true);
     try {
@@ -129,6 +156,12 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
       setError("Preencha seu nome e aceite a política de privacidade");
       return;
     }
+    const finalChurch =
+      churchMode === "new" ? newChurchName.trim() : registerChurch;
+    if (churchMode === "new" && !finalChurch) {
+      setError("Digite o nome da nova congregação");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -140,7 +173,7 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
           name: registerName,
           phone: registerPhone,
           role: registerRole,
-          churchName: registerChurch,
+          churchName: finalChurch,
           acceptLgpd: true,
         }),
       });
@@ -148,6 +181,13 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
       if (!data.success) {
         setError(data.error || "Erro");
         return;
+      }
+      // Se cadastrou uma nova congregação, adiciona à lista local
+      if (churchMode === "new" && finalChurch && data.data?.congregationId) {
+        setCongregations((prev) => [
+          ...prev,
+          { id: data.data.congregationId, name: finalChurch, city: null, state: null },
+        ]);
       }
       setConfirmedAt(data.data.attendance.createdAt);
       if (data.alreadyCheckedIn) {
@@ -402,13 +442,60 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1 block">Igreja / Congregação</label>
-              <input
-                type="text"
-                value={registerChurch}
-                onChange={(e) => setRegisterChurch(e.target.value)}
-                placeholder="Ex: OBPC Cajuru"
-                className="w-full px-3 py-3 border-2 border-slate-200 rounded-xl text-base focus:outline-none focus:border-emerald-500"
-              />
+              {churchMode === "select" ? (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Church className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <select
+                      value={registerChurch}
+                      onChange={(e) => setRegisterChurch(e.target.value)}
+                      disabled={loadingCongregations}
+                      className="w-full pl-10 pr-10 py-3 border-2 border-slate-200 rounded-xl text-base focus:outline-none focus:border-emerald-500 appearance-none bg-white"
+                    >
+                      <option value="">
+                        {loadingCongregations
+                          ? "Carregando..."
+                          : congregations.length === 0
+                          ? "Nenhuma congregação cadastrada"
+                          : "Selecione sua igreja"}
+                      </option>
+                      {congregations.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                          {c.city ? ` — ${c.city}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setChurchMode("new"); setNewChurchName(""); }}
+                    className="w-full flex items-center justify-center gap-1.5 text-emerald-700 hover:text-emerald-800 text-sm font-semibold py-2 border-2 border-dashed border-emerald-300 rounded-xl hover:bg-emerald-50 transition"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Cadastrar nova congregação
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newChurchName}
+                    onChange={(e) => setNewChurchName(e.target.value)}
+                    placeholder="Nome da nova congregação (ex: OBPC Vila Nova)"
+                    autoFocus
+                    className="w-full px-3 py-3 border-2 border-emerald-400 rounded-xl text-base focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setChurchMode("select"); setNewChurchName(""); }}
+                    className="w-full text-slate-500 text-sm font-semibold py-1"
+                  >
+                    ← Escolher da lista
+                  </button>
+                </div>
+              )}
             </div>
 
             <label className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
