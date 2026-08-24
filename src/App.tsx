@@ -31,6 +31,7 @@ import { PrivacyView } from './components/views/PrivacyView';
 import { ObpcAdminView } from './components/views/ObpcAdminView';
 import { ObpcTelaoView } from './components/views/ObpcTelaoView';
 import { ObpcCheckinView } from './components/views/ObpcCheckinView';
+import { ObpcStandaloneApp } from './components/views/ObpcStandaloneApp';
 
 import { MemberModal } from './components/MemberModal';
 
@@ -78,6 +79,13 @@ function AppInner() {
     if (path.startsWith('/checkin/')) {
       const token = path.replace('/checkin/', '').split('/')[0];
       return <ObpcCheckinView token={token} />;
+    }
+    // QRCODE — App standalone (só OBPC, sem o resto do Kairos)
+    // Ativo quando o hostname for qrcode.* ou obpc.*
+    const host = window.location.hostname;
+    if (host.startsWith('qrcode.') || host.startsWith('obpc.')) {
+      if (!user) return <Login />;
+      return <ObpcStandaloneApp />;
     }
   }
 
