@@ -9,8 +9,9 @@ import {
   Calendar, Clock, MapPin, Plus, QrCode, Trash2, Edit2, X,
   CheckCircle2, Power, PowerOff, RefreshCw, ExternalLink, Users,
   BarChart3, Loader2, AlertCircle, Search, PlayCircle, StopCircle,
+  Download, FileText, FileSpreadsheet,
 } from "lucide-react";
-import { api } from "../../services/api";
+import { api, getToken } from "../../services/api";
 
 // Tipos
 type ObpcEventStatus = "ABERTO" | "ENCERRADO" | "CANCELADO";
@@ -109,9 +110,46 @@ export const ObpcAdminView: React.FC = () => {
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  // Export menu
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleExport = async (format: "csv" | "pdf") => {
+    try {
+      setExporting(true);
+      setExportOpen(false);
+      const token = getToken();
+      const url = `/api/obpc/members/export?format=${format}${token ? `&token=${token}` : ""}`;
+      if (format === "pdf") {
+        // Abre HTML formatado — Pastor usa "Salvar como PDF" no navegador
+        const w = window.open(url, "_blank");
+        if (!w) showToast("Permita pop-ups para gerar PDF", "error");
+      } else {
+        // Baixa CSV direto
+        const r = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!r.ok) throw new Error("Falha ao exportar");
+        const blob = await r.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `obreiros-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+        showToast("Lista exportada em Excel/CSV");
+      }
+    } catch (e: any) {
+      showToast(e.message || "Erro ao exportar", "error");
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Carrega lista
@@ -288,12 +326,59 @@ export const ObpcAdminView: React.FC = () => {
             Crie eventos, gere QR e acompanhe as presenças em tempo real.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm transition"
-        >
-          <Plus className="w-5 h-5" /> Novo evento
-        </button>
+        <div className="flex gap-2 relative">
+          {/* Botão Exportar com dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setExportOpen(!exportOpen)}
+              disabled={exporting}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-700 font-semibold rounded-xl shadow-sm transition"
+            >
+              {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+              Exportar
+            </button>
+            {exportOpen && (
+              <>
+                {/* overlay pra fechar ao clicar fora */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setExportOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+                    <p className="text-xs font-bold text-slate-600 uppercase">Baixar lista de obreiros</p>
+                  </div>
+                  <button
+                    onClick={() => handleExport("csv")}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 text-left transition"
+                  >
+                    <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Excel / CSV</p>
+                      <p className="text-xs text-slate-500">Abre no Excel ou Sheets</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleExport("pdf")}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-rose-50 text-left transition border-t border-slate-100"
+                  >
+                    <FileText className="w-5 h-5 text-rose-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">PDF (imprimir)</p>
+                      <p className="text-xs text-slate-500">"Salvar como PDF" no navegador</p>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm transition"
+          >
+            <Plus className="w-5 h-5" /> Novo evento
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
