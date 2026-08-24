@@ -128,7 +128,7 @@ router.get(
     const congregations = await prisma.congregation.findMany({
       where: { tenantId: ev.tenantId, deletedAt: null },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, city: true, state: true },
+      select: { id: true, name: true, address: true },
     });
     res.json({ success: true, data: congregations });
   })
@@ -138,7 +138,7 @@ router.get(
 router.post(
   "/congregations",
   asyncHandler(async (req: Request, res: Response) => {
-    const { token, name, city, state } = req.body || {};
+    const { token, name } = req.body || {};
     if (!token || !name) {
       return res.status(400).json({ success: false, error: "token e name são obrigatórios" });
     }
@@ -159,12 +159,7 @@ router.post(
     }
 
     const created = await prisma.congregation.create({
-      data: {
-        tenantId: ev.tenantId,
-        name: trimmed,
-        city: city || null,
-        state: state || null,
-      },
+      data: { tenantId: ev.tenantId, name: trimmed },
     });
     res.status(201).json({ success: true, data: created });
   })

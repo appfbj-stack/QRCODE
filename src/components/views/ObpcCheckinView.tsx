@@ -34,8 +34,7 @@ interface MemberHit {
 interface Congregation {
   id: string;
   name: string;
-  city: string | null;
-  state: string | null;
+  address: string | null;
 }
 
 type Step = "loading" | "ready" | "searching" | "selected" | "registering" | "confirmed" | "denied" | "already";
@@ -186,7 +185,7 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
       if (churchMode === "new" && finalChurch && data.data?.congregationId) {
         setCongregations((prev) => [
           ...prev,
-          { id: data.data.congregationId, name: finalChurch, city: null, state: null },
+          { id: data.data.congregationId, name: finalChurch, address: null },
         ]);
       }
       setConfirmedAt(data.data.attendance.createdAt);
@@ -462,7 +461,7 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
                       {congregations.map((c) => (
                         <option key={c.id} value={c.name}>
                           {c.name}
-                          {c.city ? ` — ${c.city}` : ""}
+                          {c.address ? ` — ${c.address}` : ""}
                         </option>
                       ))}
                     </select>
