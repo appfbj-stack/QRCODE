@@ -82,9 +82,9 @@ function AppInner() {
     }
     // QRCODE — App standalone (só OBPC, sem o resto do Kairos)
     // Ativo quando o hostname for qrcode.* ou obpc.*
+    // Renderiza DIRETO sem esperar login (o auto-login roda em background no AuthContext)
     const host = window.location.hostname;
     if (host.startsWith('qrcode.') || host.startsWith('obpc.')) {
-      if (!user) return <Login />;
       return <ObpcStandaloneApp />;
     }
   }
