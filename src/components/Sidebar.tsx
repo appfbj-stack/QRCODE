@@ -55,23 +55,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   user = null,
 }) => {
   const allItems: NavItem[] = [
+    { id: 'obpc', label: 'Presença QR', icon: QrCode },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'membros', label: 'Membros', icon: Users },
-    { id: 'celulas', label: 'Células', icon: Home },
     { id: 'congregacoes', label: 'Congregações', icon: Building2 },
-    { id: 'ministerios', label: 'Ministérios', icon: Briefcase },
     { id: 'eventos', label: 'Eventos', icon: Calendar },
-    { id: 'obpc', label: 'Presença QR', icon: QrCode, adminOnly: true },
-    { id: 'financas', label: 'Finanças', icon: DollarSign },
-    { id: 'oracao', label: 'Oração', icon: Flame, badge: prayersCount },
-    { id: 'sermoes', label: 'Sermões', icon: BookOpen },
-    { id: 'voluntarios', label: 'Voluntários', icon: UserCheck },
-    { id: 'mural', label: 'Mural', icon: Megaphone },
-    { id: 'chat', label: 'Chat', icon: MessageSquare, badge: unreadChatCount },
     { id: 'documentos', label: 'Documentos', icon: FileText },
-    { id: 'usuarios', label: 'Usuários', icon: UserCog, adminOnly: true },
-    { id: 'billing', label: 'Assinatura', icon: CreditCard, adminOnly: true },
-    { id: 'super-admin', label: 'Super Admin', icon: Shield, superAdminOnly: true },
   ];
 
   // Filtra: esconde itens adminOnly se o user não for admin
@@ -95,28 +84,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#5a5a40] text-[#f5f5f0] flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 border-r border-[#4d4d36] ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-emerald-700 text-white flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 border-r border-emerald-800 ${
           isOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Logo & Header */}
-        <div className="h-16 px-5 flex items-center justify-between border-b border-[#4d4d36] bg-[#4d4d36]/50">
+        <div className="h-16 px-5 flex items-center justify-between border-b border-emerald-800 bg-emerald-800/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#a68a64] flex items-center justify-center shadow-md ring-1 ring-white/20">
-              <span className="font-extrabold text-xl text-[#2a2a20] tracking-wider font-serif">K</span>
+            <div className="w-10 h-10 rounded-2xl bg-amber-400 flex items-center justify-center shadow-md ring-1 ring-white/20">
+              <QrCode className="w-5 h-5 text-emerald-900" />
             </div>
             <div>
-              <h1 className="font-bold font-serif text-lg text-[#f5f5f0] leading-none tracking-wider">
-                KAIROS
+              <h1 className="font-extrabold text-lg text-white leading-none tracking-wider">
+                QRCODE
               </h1>
-              <p className="text-[10px] text-[#e0d8c0] font-semibold tracking-widest uppercase mt-0.5">
-                Gestão Eclesiástica
+              <p className="text-[10px] text-emerald-100 font-semibold tracking-widest uppercase mt-0.5">
+                Obreiros OBPC
               </p>
             </div>
           </div>
           <button
             onClick={onCloseMobile}
-            className="lg:hidden text-[#e0d8c0] hover:text-white p-1 rounded-lg hover:bg-[#4d4d36]"
+            className="lg:hidden text-emerald-100 hover:text-white p-1 rounded-lg hover:bg-emerald-800"
             aria-label="Fechar menu"
           >
             <X className="w-5 h-5" />
@@ -125,7 +114,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation List */}
         <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
-          <div className="px-3 pb-2 text-[10px] font-extrabold tracking-widest text-[#e0d8c0]/80 uppercase">
+          <div className="px-3 pb-2 text-[10px] font-extrabold tracking-widest text-emerald-100/80 uppercase">
             Menu Principal
           </div>
           {navItems.map((item) => {
@@ -140,14 +129,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-150 group ${
                   isActive
-                    ? 'bg-[#4d4d36] text-[#f5f5f0] shadow-sm ring-1 ring-[#a68a64]/40 font-bold'
-                    : 'text-[#e0d8c0] hover:text-white hover:bg-[#6b6b4d]/50'
+                    ? 'bg-emerald-800 text-white shadow-sm ring-1 ring-amber-400/40 font-bold'
+                    : 'text-emerald-100 hover:text-white hover:bg-emerald-800/60'
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon
                     className={`w-4 h-4 transition-colors ${
-                      isActive ? 'text-[#a68a64]' : 'text-[#e0d8c0]/80 group-hover:text-white'
+                      isActive ? 'text-amber-400' : 'text-emerald-100/80 group-hover:text-white'
                     }`}
                   />
                   <span>{item.label}</span>
@@ -156,8 +145,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span
                     className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full ${
                       isActive
-                        ? 'bg-[#a68a64] text-[#2a2a20]'
-                        : 'bg-[#a68a64]/30 text-[#e0d8c0] border border-[#a68a64]/40'
+                        ? 'bg-amber-400 text-emerald-900'
+                        : 'bg-amber-400/30 text-amber-100 border border-amber-400/40'
                     }`}
                   >
                     {item.badge}
@@ -168,15 +157,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* Congregation Footer Banner */}
-        <div className="p-3 border-t border-[#4d4d36] bg-[#4d4d36]/40">
-          <div className="p-3 rounded-2xl bg-[#4d4d36] border border-[#a68a64]/30 flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-[#a68a64]/20 text-[#a68a64]">
-              <Church className="w-4 h-4 text-[#e0d8c0]" />
+        {/* Footer do tenant */}
+        <div className="p-3 border-t border-emerald-800 bg-emerald-800/40">
+          <div className="p-3 rounded-2xl bg-emerald-800 border border-amber-400/30 flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-amber-400/20 text-amber-400">
+              <Church className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-serif font-bold text-[#f5f5f0] truncate">Igreja Kairos</p>
-              <p className="text-[10px] text-[#e0d8c0] truncate">Tempo Oportuno de Deus</p>
+              <p className="text-xs font-bold text-white truncate">{user?.tenant?.name || "OBPC"}</p>
+              <p className="text-[10px] text-emerald-100 truncate">Sistema de Presença</p>
             </div>
           </div>
         </div>

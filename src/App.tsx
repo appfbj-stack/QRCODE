@@ -84,7 +84,8 @@ function AppInner() {
   const { user, logout } = useAuth();
   if (!user) return <Login />;
 
-  const [currentView, setCurrentView] = useState<ViewMode>('dashboard');
+  // QRCODE — app dedicado de presença OBPC: abre direto no painel de Presença QR
+  const [currentView, setCurrentView] = useState<ViewMode>('obpc');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [selectedCongregationId, setSelectedCongregationId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
