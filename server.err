@@ -1,0 +1,20 @@
+node:internal/url:1490
+    throw new ERR_INVALID_FILE_URL_PATH('must be absolute', url);
+    ^
+
+TypeError [ERR_INVALID_FILE_URL_PATH]: File URL path must be absolute
+    at getPathFromURLWin32 (node:internal/url:1490:11)
+    at fileURLToPath (node:internal/url:1614:35)
+    at Object.<anonymous> (C:\Users\ferna\.minimax\workspace\qrcode-obreiros\dist\server.cjs:119:74)
+    at Module._compile (node:internal/modules/cjs/loader:1761:14)
+    at Object..js (node:internal/modules/cjs/loader:1893:10)
+    at Module.load (node:internal/modules/cjs/loader:1481:32)
+    at Module._load (node:internal/modules/cjs/loader:1300:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5) {
+  code: 'ERR_INVALID_FILE_URL_PATH',
+  input: file:///app/dist/server.cjs
+}
+
+Node.js v24.11.1
