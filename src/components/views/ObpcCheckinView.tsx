@@ -478,14 +478,20 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={newChurchName}
-                    onChange={(e) => setNewChurchName(e.target.value)}
-                    placeholder="Nome da nova congregação (ex: OBPC Vila Nova)"
-                    autoFocus
-                    className="w-full px-3 py-3 border-2 border-emerald-400 rounded-xl text-base focus:outline-none focus:border-emerald-500"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-700 font-bold text-sm select-none">OBPC</span>
+                    <input
+                      type="text"
+                      value={newChurchName.replace(/^obpc\s+/i, "")}
+                      onChange={(e) => setNewChurchName(e.target.value)}
+                      placeholder="Nome (ex: Vila Nova)"
+                      autoFocus
+                      className="w-full pl-14 pr-3 py-3 border-2 border-emerald-400 rounded-xl text-base focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Será salvo como: <span className="font-bold text-emerald-700">OBPC {newChurchName.replace(/^obpc\s+/i, "") || "(nome)"}</span>
+                  </p>
                   <button
                     type="button"
                     onClick={() => { setChurchMode("select"); setNewChurchName(""); }}

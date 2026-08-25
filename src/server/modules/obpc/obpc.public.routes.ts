@@ -134,7 +134,7 @@ router.get(
   })
 );
 
-// POST /public/congregations — cadastra nova igreja na hora
+// POST /public/congregations — cadastra nova igreja na hora (sempre prefixa "OBPC ")
 router.post(
   "/congregations",
   asyncHandler(async (req: Request, res: Response) => {
@@ -147,19 +147,21 @@ router.post(
     });
     if (!ev) return res.status(404).json({ success: false, error: "QR inválido" });
 
-    const trimmed = String(name).trim();
-    if (!trimmed) return res.status(400).json({ success: false, error: "Nome vazio" });
+    const raw = String(name).trim();
+    if (!raw) return res.status(400).json({ success: false, error: "Nome vazio" });
+    // Garante prefixo "OBPC " (case-insensitive)
+    const final = /^obpc\s+/i.test(raw) ? raw : `OBPC ${raw}`;
 
     // Se já existe (case-insensitive) no mesmo tenant, retorna o existente (idempotente)
     const existing = await prisma.congregation.findFirst({
-      where: { tenantId: ev.tenantId, deletedAt: null, name: { equals: trimmed, mode: "insensitive" } },
+      where: { tenantId: ev.tenantId, deletedAt: null, name: { equals: final, mode: "insensitive" } },
     });
     if (existing) {
       return res.json({ success: true, data: existing, alreadyExists: true });
     }
 
     const created = await prisma.congregation.create({
-      data: { tenantId: ev.tenantId, name: trimmed },
+      data: { tenantId: ev.tenantId, name: final },
     });
     res.status(201).json({ success: true, data: created });
   })
@@ -230,15 +232,17 @@ router.post(
     let finalChurchName: string | null = null;
     const churchTrim = (churchName || "").trim();
     if (churchTrim) {
+      // Garante prefixo "OBPC " (case-insensitive) pra manter padrao do sistema
+      const withPrefix = /^obpc\s+/i.test(churchTrim) ? churchTrim : `OBPC ${churchTrim}`;
       const existing = await prisma.congregation.findFirst({
-        where: { tenantId: ev.tenantId, deletedAt: null, name: { equals: churchTrim, mode: "insensitive" } },
+        where: { tenantId: ev.tenantId, deletedAt: null, name: { equals: withPrefix, mode: "insensitive" } },
       });
       if (existing) {
         congregationId = existing.id;
         finalChurchName = existing.name;
       } else {
         const created = await prisma.congregation.create({
-          data: { tenantId: ev.tenantId, name: churchTrim },
+          data: { tenantId: ev.tenantId, name: withPrefix },
         });
         congregationId = created.id;
         finalChurchName = created.name;
