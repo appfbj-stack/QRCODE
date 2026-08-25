@@ -93,9 +93,8 @@ export const ObpcStandaloneApp: React.FC = () => {
       {/* Footer */}
       <footer className="max-w-7xl mx-auto px-4 md:px-6 py-6 mt-8 text-center text-xs text-slate-500">
         <p>
-          <strong>QRCODE Obreiros OBPC</strong> · v1.0.10 · {new Date().getFullYear()}
+          <strong>KAIROS QRCODE</strong> · v1.2.4
         </p>
-        <p className="mt-1">Sistema de cadastro e presença por QR Code · Multi-tenant · LGPD</p>
       </footer>
     </div>
   );
