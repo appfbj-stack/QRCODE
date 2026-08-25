@@ -110,46 +110,9 @@ export const ObpcAdminView: React.FC = () => {
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  // Export menu
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
-
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
-  };
-
-  const handleExport = async (format: "csv" | "pdf") => {
-    try {
-      setExporting(true);
-      setExportOpen(false);
-      const token = getToken();
-      const url = `/api/obpc/members/export?format=${format}${token ? `&token=${token}` : ""}`;
-      if (format === "pdf") {
-        // Abre HTML formatado — Pastor usa "Salvar como PDF" no navegador
-        const w = window.open(url, "_blank");
-        if (!w) showToast("Permita pop-ups para gerar PDF", "error");
-      } else {
-        // Baixa CSV direto
-        const r = await fetch(url, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!r.ok) throw new Error("Falha ao exportar");
-        const blob = await r.blob();
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `obreiros-${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(a.href);
-        showToast("Lista exportada em Excel/CSV");
-      }
-    } catch (e: any) {
-      showToast(e.message || "Erro ao exportar", "error");
-    } finally {
-      setExporting(false);
-    }
   };
 
   // Carrega lista
@@ -326,59 +289,12 @@ export const ObpcAdminView: React.FC = () => {
             Crie eventos, gere QR e acompanhe as presenças em tempo real.
           </p>
         </div>
-        <div className="flex gap-2 relative">
-          {/* Botão Exportar com dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setExportOpen(!exportOpen)}
-              disabled={exporting}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-700 font-semibold rounded-xl shadow-sm transition"
-            >
-              {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-              Exportar
-            </button>
-            {exportOpen && (
-              <>
-                {/* overlay pra fechar ao clicar fora */}
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setExportOpen(false)}
-                />
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
-                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
-                    <p className="text-xs font-bold text-slate-600 uppercase">Baixar lista de obreiros</p>
-                  </div>
-                  <button
-                    onClick={() => handleExport("csv")}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 text-left transition"
-                  >
-                    <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">Excel / CSV</p>
-                      <p className="text-xs text-slate-500">Abre no Excel ou Sheets</p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => handleExport("pdf")}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-rose-50 text-left transition border-t border-slate-100"
-                  >
-                    <FileText className="w-5 h-5 text-rose-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">PDF (imprimir)</p>
-                      <p className="text-xs text-slate-500">"Salvar como PDF" no navegador</p>
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm transition"
-          >
-            <Plus className="w-5 h-5" /> Novo evento
-          </button>
-        </div>
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-sm transition"
+        >
+          <Plus className="w-5 h-5" /> Novo evento
+        </button>
       </div>
 
       {/* Filtros */}
@@ -647,7 +563,40 @@ const EventPanelModal: React.FC<PanelProps> = ({
 }) => {
   const [liveAttendances, setLiveAttendances] = useState<Attendance[]>(attendances);
   const [liveStats, setLiveStats] = useState<Stats | null>(stats);
+  const [eventExportOpen, setEventExportOpen] = useState(false);
+  const [eventExporting, setEventExporting] = useState(false);
   const sseRef = useRef<EventSource | null>(null);
+
+  const exportEvent = async (format: "csv" | "pdf") => {
+    try {
+      setEventExporting(true);
+      setEventExportOpen(false);
+      const token = getToken();
+      const url = `/api/obpc/events/${event.id}/export?format=${format}${token ? `&token=${token}` : ""}`;
+      if (format === "pdf") {
+        const w = window.open(url, "_blank");
+        if (!w) showToast("Permita pop-ups para gerar PDF", "error");
+      } else {
+        const r = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!r.ok) throw new Error("Falha ao exportar");
+        const blob = await r.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `presencas-${event.name.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 30)}-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+        showToast("Lista do evento exportada");
+      }
+    } catch (e: any) {
+      showToast(e.message || "Erro ao exportar", "error");
+    } finally {
+      setEventExporting(false);
+    }
+  };
 
   useEffect(() => {
     setLiveAttendances(attendances);
@@ -803,11 +752,45 @@ const EventPanelModal: React.FC<PanelProps> = ({
 
             {/* Lista de presenças */}
             <div className="bg-white border border-slate-200 rounded-xl p-3">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-2 gap-2">
                 <p className="text-xs font-bold text-slate-600 uppercase">Presenças (mais recentes)</p>
-                <button onClick={onRefresh} className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold">
-                  Atualizar
-                </button>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      onClick={() => setEventExportOpen(!eventExportOpen)}
+                      disabled={eventExporting || liveAttendances.length === 0}
+                      title={liveAttendances.length === 0 ? "Sem presenças para exportar" : "Exportar lista deste evento"}
+                      className="text-xs px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold rounded-lg flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {eventExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                      Exportar
+                    </button>
+                    {eventExportOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setEventExportOpen(false)} />
+                        <div className="absolute right-0 mt-1 w-52 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden">
+                          <button
+                            onClick={() => exportEvent("csv")}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-emerald-50 text-left text-xs"
+                          >
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                            <span className="font-semibold text-slate-700">Excel / CSV</span>
+                          </button>
+                          <button
+                            onClick={() => exportEvent("pdf")}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-rose-50 text-left text-xs border-t border-slate-100"
+                          >
+                            <FileText className="w-4 h-4 text-rose-600" />
+                            <span className="font-semibold text-slate-700">PDF (imprimir)</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <button onClick={onRefresh} className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold">
+                    Atualizar
+                  </button>
+                </div>
               </div>
               {liveAttendances.length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-6">Nenhuma presença ainda</p>

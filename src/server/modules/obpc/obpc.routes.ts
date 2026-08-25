@@ -350,6 +350,136 @@ ${members.map((m, i) => `<tr>
   })
 );
 
+// =====================================================================
+// EXPORTAÇÃO POR EVENTO — Lista de PRESENÇAS de UM evento
+// =====================================================================
+// GET /events/:id/export?format=csv|pdf
+router.get(
+  "/events/:id/export",
+  authMiddleware,
+  asyncHandler(async (req: any, res: Response) => {
+    const tenantId = req.user.tenantId;
+    const format = (req.query.format || "csv").toString();
+
+    const ev = await prisma.obpcEvent.findFirst({
+      where: { id: req.params.id, tenantId, deletedAt: null },
+    });
+    if (!ev) return res.status(404).json({ success: false, error: "Evento não encontrado" });
+
+    const attendances = await prisma.obpcAttendance.findMany({
+      where: { eventId: ev.id, tenantId },
+      orderBy: [{ memberRole: "asc" }, { memberName: "asc" }],
+    });
+
+    // Resumo
+    const byRole: Record<string, number> = {};
+    const byChurch: Record<string, number> = {};
+    for (const a of attendances) {
+      const r = a.memberRole || "MEMBRO";
+      byRole[r] = (byRole[r] || 0) + 1;
+      const c = a.churchName || "(sem igreja)";
+      byChurch[c] = (byChurch[c] || 0) + 1;
+    }
+
+    const filenameBase = `presencas-${ev.name.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 30)}-${new Date().toISOString().slice(0, 10)}`;
+
+    if (format === "csv" || format === "xlsx") {
+      const csvLines: string[] = [];
+      csvLines.push("Nome;Funcao;Igreja;Check-in em");
+      for (const a of attendances) {
+        const name = (a.memberName || "").replace(/"/g, '""');
+        const role = a.memberRole || "MEMBRO";
+        const church = (a.churchName || "").replace(/"/g, '""');
+        const when = a.createdAt ? new Date(a.createdAt).toLocaleString("pt-BR") : "";
+        csvLines.push(`"${name}";"${role}";"${church}";"${when}"`);
+      }
+      const csv = "\uFEFF" + csvLines.join("\r\n");
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filenameBase}.csv"`);
+      return res.send(csv);
+    }
+
+    if (format === "pdf" || format === "html") {
+      const html = `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<title>Presenças — ${ev.name}</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 24px; color: #1a1a1a; }
+  h1 { color: #047857; border-bottom: 3px solid #047857; padding-bottom: 8px; }
+  h2 { color: #047857; margin-top: 32px; }
+  .meta { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; margin: 16px 0; font-size: 13px; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
+  .card { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; text-align: center; }
+  .card .n { font-size: 24px; font-weight: bold; color: #047857; }
+  .card .l { font-size: 11px; color: #475569; text-transform: uppercase; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; }
+  th { background: #047857; color: white; text-align: left; padding: 8px; }
+  td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+  tr:nth-child(even) { background: #f8fafc; }
+  .role { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: bold; }
+  .role.PASTOR { background: #fef3c7; color: #92400e; }
+  .role.PRESBITERO { background: #ede9fe; color: #5b21b6; }
+  .role.EVANGELISTA { background: #dbeafe; color: #1e40af; }
+  .role.MISSIONARIA { background: #fce7f3; color: #9f1239; }
+  .role.DIACONO { background: #d1fae5; color: #065f46; }
+  .role.DIACONISA { background: #ffe4e6; color: #9f1239; }
+  .role.MEMBRO { background: #f1f5f9; color: #334155; }
+  .footer { margin-top: 32px; font-size: 10px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+  @media print { .noprint { display: none; } body { padding: 0; } }
+</style>
+</head>
+<body>
+<h1>📋 Lista de Presenças</h1>
+<h2 style="margin-top:8px; border:none; padding:0;">${ev.name}</h2>
+<div class="meta">
+  <strong>Data:</strong> ${new Date(ev.date).toLocaleDateString("pt-BR")} ${ev.time ? "· " + ev.time : ""}<br>
+  ${ev.location ? `<strong>Local:</strong> ${ev.location}<br>` : ""}
+  ${ev.hostChurch ? `<strong>Igreja sede:</strong> ${ev.hostChurch}<br>` : ""}
+  <strong>Status:</strong> ${ev.status} &middot; <strong>Total de presenças:</strong> ${attendances.length}
+</div>
+
+<h2>Resumo por Função</h2>
+<div class="summary">
+${Object.entries(byRole).sort().map(([r, n]) => `<div class="card"><div class="n">${n}</div><div class="l">${r}</div></div>`).join("")}
+</div>
+
+<h2>Resumo por Igreja</h2>
+<div class="summary">
+${Object.entries(byChurch).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([c, n]) => `<div class="card"><div class="n">${n}</div><div class="l">${c}</div></div>`).join("")}
+</div>
+
+<h2>Lista Detalhada</h2>
+<table>
+<thead><tr><th>#</th><th>Nome</th><th>Função</th><th>Igreja</th><th>Check-in</th></tr></thead>
+<tbody>
+${attendances.map((a, i) => `<tr>
+  <td>${i + 1}</td>
+  <td>${a.memberName || ""}</td>
+  <td><span class="role ${a.memberRole || "MEMBRO"}">${a.memberRole || "MEMBRO"}</span></td>
+  <td>${a.churchName || "(sem igreja)"}</td>
+  <td>${a.createdAt ? new Date(a.createdAt).toLocaleString("pt-BR") : ""}</td>
+</tr>`).join("")}
+</tbody>
+</table>
+
+<div class="footer">
+  KAIROS QRCODE &middot; Lista de presenças gerada em ${new Date().toLocaleString("pt-BR")}
+</div>
+
+<div class="noprint" style="margin-top: 24px; text-align: center;">
+  <button onclick="window.print()" style="padding: 12px 32px; background: #047857; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;">
+    🖨️ Imprimir / Salvar como PDF
+  </button>
+</div>
+</body></html>`;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.send(html);
+    }
+
+    res.status(400).json({ success: false, error: "Formato inválido. Use csv ou pdf." });
+  })
+);
+
 // GET /events/:id/stream (SSE — autenticado)
 router.get(
   "/events/:id/stream",
