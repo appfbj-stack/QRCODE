@@ -93,7 +93,7 @@ export const ObpcStandaloneApp: React.FC = () => {
       {/* Footer */}
       <footer className="max-w-7xl mx-auto px-4 md:px-6 py-6 mt-8 text-center text-xs text-slate-500">
         <p>
-          <strong>KAIROS QRCODE</strong> · v1.2.4
+          <strong>KAIROS QRCODE</strong> · v1.3.8
         </p>
       </footer>
     </div>

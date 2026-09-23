@@ -9,7 +9,7 @@ import {
   Calendar, Clock, MapPin, Plus, QrCode, Trash2, Edit2, X,
   CheckCircle2, Power, PowerOff, RefreshCw, ExternalLink, Users,
   BarChart3, Loader2, AlertCircle, Search, PlayCircle, StopCircle,
-  Download, FileText, FileSpreadsheet,
+  Download, FileText, FileSpreadsheet, Church, User,
 } from "lucide-react";
 import { api, getToken } from "../../services/api";
 
