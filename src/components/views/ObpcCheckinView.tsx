@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  CheckCircle2, X, AlertCircle, Loader2, User, Search, Phone, Church, MapPin, Calendar, Clock, Shield, Plus, ChevronDown,
+  CheckCircle2, X, AlertCircle, Loader2, User, Search, Phone, Church, MapPin, Calendar, Clock, Shield, Plus, ChevronDown, BarChart3,
 } from "lucide-react";
 
 interface EventInfo {
@@ -39,7 +39,7 @@ interface Congregation {
   address: string | null;
 }
 
-type Step = "loading" | "ready" | "searching" | "selected" | "registering" | "simple" | "roster" | "confirmed" | "denied" | "already";
+type Step = "loading" | "ready" | "searching" | "selected" | "registering" | "simple" | "roster" | "confirmed" | "already" | "result" | "denied";
 
 const ROLES = [
   "PASTOR", "PRESBITERO", "EVANGELISTA", "MISSIONARIA", "DIACONO", "DIACONISA", "MEMBRO",
@@ -78,6 +78,15 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
   } | null>(null);
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterSearch, setRosterSearch] = useState("");
+
+  // Resultado final (resumo do evento com totais)
+  const [finalStats, setFinalStats] = useState<{
+    total: number;
+    byRole: Record<string, number>;
+    byChurch: Record<string, number>;
+    recent: any[];
+  } | null>(null);
+  const [loadingResult, setLoadingResult] = useState(false);
 
   // Carrega evento
   useEffect(() => {
@@ -149,7 +158,19 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
   };
   useEffect(() => {
     if (step === "roster" && !roster) loadRoster();
+    if (step === "result" && !finalStats) loadFinalStats();
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadFinalStats = async () => {
+    setLoadingResult(true);
+    try {
+      const res = await fetch(`/api/obpc/public/event/${token}/stats`);
+      const data = await res.json();
+      if (data.success) setFinalStats(data.data);
+    } catch {} finally {
+      setLoadingResult(false);
+    }
+  };
 
   const confirm = async (memberId: string) => {
     setSubmitting(true);
@@ -332,7 +353,110 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
           {step === "already" && (
             <p className="text-xs text-amber-600 mt-3">Você já estava na lista deste evento.</p>
           )}
-          <p className="text-xs text-slate-400 mt-6">Você pode fechar esta página.</p>
+          <button
+            onClick={() => setStep("result")}
+            className="mt-6 w-full bg-white hover:bg-emerald-50 text-emerald-700 font-bold py-3 px-4 rounded-2xl border-2 border-emerald-200 transition flex items-center justify-center gap-2"
+          >
+            <BarChart3 className="w-5 h-5" /> Ver resultado final
+          </button>
+          <p className="text-xs text-slate-400 mt-3">Você pode fechar esta página.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Tela de resultado final (totais do evento)
+  if (step === "result") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-white p-6">
+        <div className="max-w-md mx-auto space-y-4">
+          <div className="bg-white rounded-3xl shadow-xl p-6 text-center">
+            <BarChart3 className="w-12 h-12 text-emerald-600 mx-auto mb-2" />
+            <h1 className="text-2xl font-extrabold text-slate-800 mb-1">Resultado Final</h1>
+            {event && <p className="text-sm text-slate-600">{event.name}</p>}
+          </div>
+
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-3xl shadow-xl p-6 text-center text-white">
+            <p className="text-xs font-bold uppercase tracking-wider opacity-80">Total de Presentes</p>
+            <p className="text-6xl font-extrabold mt-1">{finalStats?.total ?? "..."}</p>
+            {finalStats?.byChurch && (
+              <p className="text-sm opacity-80 mt-1">{Object.keys(finalStats.byChurch).length} igrejas</p>
+            )}
+          </div>
+
+          {loadingResult ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
+            </div>
+          ) : finalStats ? (
+            <>
+              {Object.keys(finalStats.byRole).length > 0 && (
+                <div className="bg-white rounded-2xl shadow-md p-4">
+                  <p className="text-xs font-bold text-slate-600 uppercase mb-2">Por Função</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(finalStats.byRole).sort((a, b) => b[1] - a[1]).map(([role, count]) => (
+                      <div key={role} className="bg-emerald-50 rounded-xl p-2 text-center">
+                        <p className="text-lg font-extrabold text-emerald-700">{count}</p>
+                        <p className="text-[10px] text-slate-600 uppercase font-bold">{role}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {Object.keys(finalStats.byChurch).length > 0 && (
+                <div className="bg-white rounded-2xl shadow-md p-4">
+                  <p className="text-xs font-bold text-slate-600 uppercase mb-2">Por Igreja</p>
+                  <div className="space-y-1">
+                    {Object.entries(finalStats.byChurch).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([church, count]) => (
+                      <div key={church} className="flex items-center justify-between text-sm py-1 border-b border-slate-100 last:border-0">
+                        <span className="text-slate-700 truncate flex-1">{church}</span>
+                        <span className="font-bold text-emerald-700 ml-2">{count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {finalStats.recent && finalStats.recent.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-md p-4">
+                  <p className="text-xs font-bold text-slate-600 uppercase mb-2">Últimos a chegarem</p>
+                  <ul className="space-y-1">
+                    {finalStats.recent.slice(-5).reverse().map((a: any) => (
+                      <li key={a.id} className="flex items-center justify-between text-sm py-1 border-b border-slate-100 last:border-0">
+                        <span className="text-slate-700 truncate flex-1">
+                          {a.memberName}
+                          {a.churchName && <span className="text-xs text-slate-500"> · {a.churchName}</span>}
+                        </span>
+                        <span className="text-xs text-slate-400 ml-2">
+                          {new Date(a.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-center text-slate-500 text-sm">Nenhuma presença ainda.</p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep("ready")}
+              className="flex-1 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 px-4 rounded-2xl border-2 border-slate-200 transition"
+            >
+              Registrar outro
+            </button>
+            <a
+              href={`/telao/${token}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-2xl text-center transition"
+            >
+              Ver Telão
+            </a>
+          </div>
         </div>
       </div>
     );
