@@ -77,6 +77,7 @@ router.post(
         location: location || null,
         hostChurch: hostChurch || null,
         congregationId: congregationId || null,
+        membersOnly: membersOnly === true,
         status: status || "ABERTO",
       },
     });
