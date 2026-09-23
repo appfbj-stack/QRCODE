@@ -187,6 +187,62 @@ router.get(
   })
 );
 
+// PATCH /events/:id/attendances/:attId — admin edita uma presença
+// (atualiza role/igreja no MEMBER + sincroniza snapshot no ObpcAttendance)
+router.patch(
+  "/events/:id/attendances/:attId",
+  authMiddleware,
+  asyncHandler(async (req: any, res: Response) => {
+    const tenantId = req.user.tenantId;
+    const { role, congregationId, churchName } = req.body || {};
+    const att = await prisma.obpcAttendance.findFirst({
+      where: { id: req.params.attId, eventId: req.params.id, tenantId },
+    });
+    if (!att) return res.status(404).json({ success: false, error: "Presença não encontrada" });
+
+    // Resolve congregation name se veio congregationId
+    let resolvedChurchName = churchName;
+    if (congregationId !== undefined) {
+      if (congregationId === null || congregationId === "") {
+        resolvedChurchName = null;
+      } else {
+        const c = await prisma.congregation.findFirst({
+          where: { id: congregationId, tenantId, deletedAt: null },
+        });
+        if (!c) return res.status(400).json({ success: false, error: "Congregação inválida" });
+        resolvedChurchName = c.name;
+      }
+    }
+
+    // Atualiza o MEMBER (dono da verdade)
+    if (att.memberId) {
+      const memberUpdate: any = {};
+      if (role !== undefined) memberUpdate.role = role;
+      if (congregationId !== undefined) memberUpdate.congregationId = congregationId || null;
+      if (Object.keys(memberUpdate).length > 0) {
+        await prisma.member.update({
+          where: { id: att.memberId },
+          data: memberUpdate,
+        });
+      }
+    }
+
+    // Atualiza o snapshot no ObpcAttendance (o que aparece no telão/PDF)
+    const attUpdate: any = {};
+    if (role !== undefined) attUpdate.memberRole = role;
+    if (resolvedChurchName !== undefined) attUpdate.churchName = resolvedChurchName;
+    const updated = await prisma.obpcAttendance.update({
+      where: { id: att.id },
+      data: attUpdate,
+    });
+
+    // Emite SSE pra telão atualizar ao vivo
+    obpcBus.emitCheckin(att.eventId, { type: "attendance-updated", eventId: att.eventId, attendance: updated });
+
+    res.json({ success: true, data: updated });
+  })
+);
+
 // GET /events/:id/stats
 router.get(
   "/events/:id/stats",
@@ -221,6 +277,49 @@ router.get(
         recent: attendances.slice(-10).reverse(),
       },
     });
+  })
+);
+
+// =====================================================================
+// CONGREGAÇÕES (admin) — listar e criar pra usar no modal Editar
+// =====================================================================
+
+// GET /congregations (admin) — lista igrejas do tenant
+router.get(
+  "/congregations",
+  authMiddleware,
+  asyncHandler(async (req: any, res: Response) => {
+    const tenantId = req.user.tenantId;
+    const congregations = await prisma.congregation.findMany({
+      where: { tenantId, deletedAt: null },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, address: true },
+    });
+    res.json({ success: true, data: congregations });
+  })
+);
+
+// POST /congregations (admin) — cria nova igreja
+router.post(
+  "/congregations",
+  authMiddleware,
+  asyncHandler(async (req: any, res: Response) => {
+    const tenantId = req.user.tenantId;
+    const { name } = req.body || {};
+    if (!name) return res.status(400).json({ success: false, error: "name obrigatório" });
+
+    const raw = String(name).trim();
+    const final = /^obpc\s+/i.test(raw) ? raw : `OBPC ${raw}`;
+
+    const existing = await prisma.congregation.findFirst({
+      where: { tenantId, deletedAt: null, name: { equals: final, mode: "insensitive" } },
+    });
+    if (existing) return res.json({ success: true, data: existing, alreadyExists: true });
+
+    const created = await prisma.congregation.create({
+      data: { tenantId, name: final },
+    });
+    res.status(201).json({ success: true, data: created });
   })
 );
 

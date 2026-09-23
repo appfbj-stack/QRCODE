@@ -37,7 +37,7 @@ interface Congregation {
   address: string | null;
 }
 
-type Step = "loading" | "ready" | "searching" | "selected" | "registering" | "confirmed" | "denied" | "already";
+type Step = "loading" | "ready" | "searching" | "selected" | "registering" | "simple" | "confirmed" | "denied" | "already";
 
 const ROLES = [
   "PASTOR", "PRESBITERO", "EVANGELISTA", "MISSIONARIA", "DIACONO", "DIACONISA", "MEMBRO",
@@ -145,6 +145,46 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
     } catch (e: any) {
       setError(e.message || "Erro");
       setStep("denied");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const quickRegisterSimple = async () => {
+    if (!registerName || !acceptLgpd) {
+      setError("Preencha seu nome e aceite a política de privacidade");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      // Modo simples: sem role, sem igreja. Admin completa depois se precisar.
+      const res = await fetch("/api/obpc/public/quick-register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          name: registerName,
+          phone: registerPhone || "",
+          role: "MEMBRO",
+          churchName: "",
+          acceptLgpd: true,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error || "Erro");
+        return;
+      }
+      setConfirmedAt(data.data.attendance.createdAt);
+      if (data.alreadyCheckedIn) {
+        setAlreadyCheckedIn(true);
+        setStep("already");
+      } else {
+        setStep("confirmed");
+      }
+    } catch (e: any) {
+      setError(e.message || "Erro");
     } finally {
       setSubmitting(false);
     }
@@ -313,8 +353,17 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
               onClick={() => setStep("registering")}
               className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-4 px-4 rounded-2xl shadow-sm border-2 border-slate-200 flex items-center justify-center gap-2 text-lg transition"
             >
-              <User className="w-5 h-5" /> Fazer meu cadastro
+              <User className="w-5 h-5" /> Fazer cadastro completo
             </button>
+            <button
+              onClick={() => { setRegisterName(""); setRegisterPhone(""); setAcceptLgpd(false); setStep("simple"); }}
+              className="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold py-3 px-4 rounded-2xl shadow-sm border-2 border-amber-200 flex items-center justify-center gap-2 text-base transition"
+            >
+              <User className="w-5 h-5" /> Só quero registrar meu nome
+            </button>
+            <p className="text-xs text-slate-500 text-center px-2">
+              A liderança completa cargo e igreja depois, se precisar.
+            </p>
           </div>
         )}
 
@@ -530,6 +579,73 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
             >
               {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
               Cadastrar e confirmar
+            </button>
+            <button
+              onClick={() => setStep("ready")}
+              className="w-full text-slate-500 text-sm font-semibold py-2"
+            >
+              ← Voltar
+            </button>
+          </div>
+        )}
+
+        {/* Step: simple → cadastro só com nome */}
+        {step === "simple" && (
+          <div className="space-y-3">
+            <h3 className="font-bold text-slate-800">Registro rápido</h3>
+            <p className="text-xs text-slate-500">Só preciso do seu nome. A liderança complementa depois.</p>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1 block">Nome completo *</label>
+              <input
+                type="text"
+                value={registerName}
+                onChange={(e) => setRegisterName(e.target.value)}
+                autoFocus
+                placeholder="Seu nome"
+                className="w-full px-3 py-3 border-2 border-amber-300 rounded-xl text-base focus:outline-none focus:border-amber-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1 block">Telefone (opcional)</label>
+              <div className="relative">
+                <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="tel"
+                  value={registerPhone}
+                  onChange={(e) => setRegisterPhone(e.target.value)}
+                  placeholder="(00) 00000-0000"
+                  className="w-full pl-10 pr-3 py-3 border-2 border-slate-200 rounded-xl text-base focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+
+            <label className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+              <input
+                type="checkbox"
+                checked={acceptLgpd}
+                onChange={(e) => setAcceptLgpd(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-emerald-600"
+              />
+              <span>
+                Autorizo o armazenamento do meu nome para controle de presença, conforme a{" "}
+                <a href="/privacidade" target="_blank" className="underline font-semibold">Política de Privacidade</a>{" "}
+                <Shield className="w-3 h-3 inline" />
+              </span>
+            </label>
+
+            {error && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-sm flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" /> {error}
+              </div>
+            )}
+
+            <button
+              onClick={() => quickRegisterSimple()}
+              disabled={submitting || !registerName || !acceptLgpd}
+              className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-extrabold py-4 px-4 rounded-2xl shadow-md flex items-center justify-center gap-2 text-lg transition"
+            >
+              {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+              Registrar e confirmar
             </button>
             <button
               onClick={() => setStep("ready")}
