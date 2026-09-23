@@ -408,9 +408,9 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
                 <div className="bg-white rounded-2xl shadow-md p-4">
                   <p className="text-xs font-bold text-slate-600 uppercase mb-2">Por Igreja</p>
                   <div className="space-y-1">
-                    {Object.entries(finalStats.byChurch).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([church, count]) => (
-                      <div key={church} className="flex items-center justify-between text-sm py-1 border-b border-slate-100 last:border-0">
-                        <span className="text-slate-700 truncate flex-1">{church}</span>
+                    {Object.entries(finalStats.byChurch).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([churchName, count]) => (
+                      <div key={churchName} className="flex items-center justify-between text-sm py-1 border-b border-slate-100 last:border-0">
+                        <span className="text-slate-700 truncate flex-1">{churchName}</span>
                         <span className="font-bold text-emerald-700 ml-2">{count}</span>
                       </div>
                     ))}
