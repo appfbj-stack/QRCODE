@@ -63,7 +63,7 @@ router.post(
   authMiddleware,
   asyncHandler(async (req: any, res: Response) => {
     const tenantId = req.user.tenantId;
-    const { name, description, date, time, location, hostChurch, congregationId, status } = req.body || {};
+    const { name, description, date, time, location, hostChurch, congregationId, membersOnly, status } = req.body || {};
     if (!name || !date) {
       return res.status(400).json({ success: false, error: "name e date são obrigatórios" });
     }
