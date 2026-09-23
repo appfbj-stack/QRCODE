@@ -88,7 +88,7 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
   } | null>(null);
   const [loadingResult, setLoadingResult] = useState(false);
 
-  // Carrega evento
+  // Carrega evento (v1.3.7 hotfix)
   useEffect(() => {
     (async () => {
       try {
