@@ -35,6 +35,7 @@ router.get(
         location: ev.location,
         hostChurch: ev.hostChurch,
         fixedChurch: ev.congregation ? { id: ev.congregation.id, name: ev.congregation.name } : null,
+        membersOnly: ev.membersOnly,
         tenantName: ev.tenant.name,
         tenantLogo: ev.tenant.logo,
         status: ev.status,

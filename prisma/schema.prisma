@@ -134,6 +134,7 @@ model ObpcEvent {
   time           String? // "19:30"
   location       String?
   hostChurch     String? // igreja responsável (sede)
+  membersOnly    Boolean         @default(false) // se true, check-in só permite membros já cadastrados (sem cadastro novo)
   status         ObpcEventStatus @default(ABERTO)
   qrToken        String?         @unique // token único do QR Code do evento (gerado ao abrir)
   qrRotatedAt    DateTime? // quando o token foi rotacionado pela última vez

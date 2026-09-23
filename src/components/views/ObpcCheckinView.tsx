@@ -19,6 +19,7 @@ interface EventInfo {
   location?: string | null;
   hostChurch?: string | null;
   fixedChurch?: { id: string; name: string } | null;
+  membersOnly?: boolean;
   tenantName: string;
   tenantLogo?: string | null;
   status: "ABERTO" | "ENCERRADO" | "CANCELADO";
@@ -393,29 +394,38 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
                 <Church className="w-5 h-5" /> Sou da {event.fixedChurch.name}
               </button>
             )}
-            {/* MODO 2: Membro já cadastrado */}
+            {/* MODO 2: Membro já cadastrado (sempre visível) */}
             <button
               onClick={() => setStep("searching")}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-4 rounded-2xl shadow-md flex items-center justify-center gap-2 text-lg transition"
+              className={`w-full ${event.fixedChurch ? "bg-emerald-600 hover:bg-emerald-700" : "bg-emerald-600 hover:bg-emerald-700"} text-white font-bold py-4 px-4 rounded-2xl shadow-md flex items-center justify-center gap-2 text-lg transition`}
             >
               <User className="w-5 h-5" /> Já sou cadastrado
             </button>
-            {/* MODO 3: Cadastro livre */}
-            <button
-              onClick={() => setStep("registering")}
-              className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-4 px-4 rounded-2xl shadow-sm border-2 border-slate-200 flex items-center justify-center gap-2 text-lg transition"
-            >
-              <User className="w-5 h-5" /> Fazer cadastro completo
-            </button>
-            <button
-              onClick={() => { setRegisterName(""); setRegisterPhone(""); setAcceptLgpd(false); setStep("simple"); }}
-              className="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold py-3 px-4 rounded-2xl shadow-sm border-2 border-amber-200 flex items-center justify-center gap-2 text-base transition"
-            >
-              <User className="w-5 h-5" /> Só quero registrar meu nome
-            </button>
-            <p className="text-xs text-slate-500 text-center px-2">
-              A liderança completa cargo e igreja depois, se precisar.
-            </p>
+            {/* MODO 3: Cadastro livre (só se !membersOnly) */}
+            {!event.membersOnly && (
+              <>
+                <button
+                  onClick={() => setStep("registering")}
+                  className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-4 px-4 rounded-2xl shadow-sm border-2 border-slate-200 flex items-center justify-center gap-2 text-lg transition"
+                >
+                  <User className="w-5 h-5" /> Fazer cadastro completo
+                </button>
+                <button
+                  onClick={() => { setRegisterName(""); setRegisterPhone(""); setAcceptLgpd(false); setStep("simple"); }}
+                  className="w-full bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold py-3 px-4 rounded-2xl shadow-sm border-2 border-amber-200 flex items-center justify-center gap-2 text-base transition"
+                >
+                  <User className="w-5 h-5" /> Só quero registrar meu nome
+                </button>
+                <p className="text-xs text-slate-500 text-center px-2">
+                  A liderança completa cargo e igreja depois, se precisar.
+                </p>
+              </>
+            )}
+            {event.membersOnly && (
+              <p className="text-xs text-blue-700 text-center px-2 bg-blue-50 border border-blue-200 rounded-xl py-2">
+                🔒 Este evento só permite membros já cadastrados.
+              </p>
+            )}
           </div>
         )}
 

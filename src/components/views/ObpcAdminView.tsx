@@ -25,6 +25,7 @@ interface ObpcEvent {
   location?: string | null;
   hostChurch?: string | null;
   congregationId?: string | null;
+  membersOnly?: boolean;
   status: ObpcEventStatus;
   qrToken?: string | null;
   qrRotatedAt?: string | null;
@@ -102,6 +103,7 @@ export const ObpcAdminView: React.FC = () => {
     location: "",
     hostChurch: "",
     fixedChurchId: "",
+    membersOnly: false,
     status: "ABERTO" as ObpcEventStatus,
   });
   const [saving, setSaving] = useState(false);
@@ -156,6 +158,7 @@ export const ObpcAdminView: React.FC = () => {
       location: "",
       hostChurch: "",
       fixedChurchId: "",
+      membersOnly: false,
       status: "ABERTO",
     });
     loadAdminCongregations();
@@ -172,6 +175,7 @@ export const ObpcAdminView: React.FC = () => {
       location: ev.location || "",
       hostChurch: ev.hostChurch || "",
       fixedChurchId: ev.congregationId || "",
+      membersOnly: ev.membersOnly || false,
       status: ev.status,
     });
     loadAdminCongregations();
@@ -203,6 +207,7 @@ export const ObpcAdminView: React.FC = () => {
         location: form.location || null,
         hostChurch: form.hostChurch || null,
         congregationId: form.fixedChurchId || null,
+        membersOnly: form.membersOnly,
         status: form.status,
       };
       if (editingId) {
@@ -393,6 +398,11 @@ export const ObpcAdminView: React.FC = () => {
                     <Church className="w-3 h-3" /> Chamada fechada
                   </div>
                 )}
+                {ev.membersOnly && (
+                  <div className="mt-1 inline-flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-semibold">
+                    <User className="w-3 h-3" /> Só membros
+                  </div>
+                )}
               </div>
 
               {ev.description && (
@@ -524,6 +534,20 @@ export const ObpcAdminView: React.FC = () => {
                   Se definir, o QR do evento vira chamada fechada só dessa igreja.
                 </p>
               </div>
+              <label className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.membersOnly}
+                  onChange={(e) => setForm({ ...form, membersOnly: e.target.checked })}
+                  className="mt-0.5 w-4 h-4 accent-emerald-600"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">Só permite membros cadastrados</p>
+                  <p className="text-xs text-slate-600">
+                    Esconde os botões de cadastro. Quem escanear só consegue confirmar se já estiver no cadastro.
+                  </p>
+                </div>
+              </label>
               <div>
                 <label className="text-xs font-semibold text-slate-600 mb-1 block">Descrição</label>
                 <textarea
