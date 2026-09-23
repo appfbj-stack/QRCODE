@@ -19,7 +19,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const ev = await prisma.obpcEvent.findFirst({
       where: { qrToken: req.params.token, deletedAt: null },
-      include: { tenant: { select: { name: true, logo: true } } },
+      include: {
+        tenant: { select: { name: true, logo: true } },
+        congregation: { select: { id: true, name: true } },
+      },
     });
     if (!ev) return res.status(404).json({ success: false, error: "QR inválido ou expirado" });
     res.json({
@@ -31,6 +34,7 @@ router.get(
         time: ev.time,
         location: ev.location,
         hostChurch: ev.hostChurch,
+        fixedChurch: ev.congregation ? { id: ev.congregation.id, name: ev.congregation.name } : null,
         tenantName: ev.tenant.name,
         tenantLogo: ev.tenant.logo,
         status: ev.status,
@@ -204,6 +208,57 @@ router.get(
         role: m.role || "MEMBRO",
         congregationName: m.congregation?.name || null,
       })),
+    });
+  })
+);
+
+// GET /public/event/:token/church-members — lista membros da igreja fixa do evento (chamada fechada)
+router.get(
+  "/event/:token/church-members",
+  asyncHandler(async (req: Request, res: Response) => {
+    const ev = await prisma.obpcEvent.findFirst({
+      where: { qrToken: req.params.token, deletedAt: null },
+      include: { congregation: { select: { id: true, name: true } } },
+    });
+    if (!ev) return res.status(404).json({ success: false, error: "QR inválido" });
+    if (!ev.congregationId) {
+      return res.status(400).json({
+        success: false,
+        error: "Este evento não tem igreja fixa definida",
+      });
+    }
+
+    const members = await prisma.member.findMany({
+      where: {
+        tenantId: ev.tenantId,
+        congregationId: ev.congregationId,
+        active: true,
+        deletedAt: null,
+      },
+      orderBy: { name: "asc" },
+      include: { congregation: { select: { name: true } } },
+    });
+
+    // Marca quem JÁ fez check-in
+    const checkedIn = await prisma.obpcAttendance.findMany({
+      where: { eventId: ev.id, memberId: { in: members.map((m) => m.id) } },
+      select: { memberId: true },
+    });
+    const checkedSet = new Set(checkedIn.map((a) => a.memberId));
+
+    res.json({
+      success: true,
+      data: {
+        church: ev.congregation,
+        total: members.length,
+        present: checkedSet.size,
+        members: members.map((m) => ({
+          id: m.id,
+          name: m.name,
+          role: m.role || "MEMBRO",
+          alreadyCheckedIn: checkedSet.has(m.id),
+        })),
+      },
     });
   })
 );

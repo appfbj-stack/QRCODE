@@ -24,6 +24,7 @@ interface ObpcEvent {
   time?: string | null;
   location?: string | null;
   hostChurch?: string | null;
+  congregationId?: string | null;
   status: ObpcEventStatus;
   qrToken?: string | null;
   qrRotatedAt?: string | null;
@@ -100,6 +101,7 @@ export const ObpcAdminView: React.FC = () => {
     time: "19:30",
     location: "",
     hostChurch: "",
+    fixedChurchId: "",
     status: "ABERTO" as ObpcEventStatus,
   });
   const [saving, setSaving] = useState(false);
@@ -153,8 +155,10 @@ export const ObpcAdminView: React.FC = () => {
       time: "19:30",
       location: "",
       hostChurch: "",
+      fixedChurchId: "",
       status: "ABERTO",
     });
+    loadAdminCongregations();
     setFormOpen(true);
   };
 
@@ -167,9 +171,21 @@ export const ObpcAdminView: React.FC = () => {
       time: ev.time || "19:30",
       location: ev.location || "",
       hostChurch: ev.hostChurch || "",
+      fixedChurchId: ev.congregationId || "",
       status: ev.status,
     });
+    loadAdminCongregations();
     setFormOpen(true);
+  };
+
+  // Carrega lista de congregações (pro select do form)
+  const [adminCongregations, setAdminCongregations] = useState<{ id: string; name: string }[]>([]);
+  const loadAdminCongregations = async () => {
+    if (adminCongregations.length > 0) return;
+    try {
+      const list = await api<{ id: string; name: string }[]>("/obpc/congregations");
+      setAdminCongregations(list);
+    } catch {}
   };
 
   const saveEvent = async () => {
@@ -186,6 +202,7 @@ export const ObpcAdminView: React.FC = () => {
         time: form.time || null,
         location: form.location || null,
         hostChurch: form.hostChurch || null,
+        congregationId: form.fixedChurchId || null,
         status: form.status,
       };
       if (editingId) {
@@ -371,6 +388,11 @@ export const ObpcAdminView: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-slate-400" /> {ev._count?.attendances || 0} presenças
                 </div>
+                {ev.congregationId && (
+                  <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg text-xs font-semibold">
+                    <Church className="w-3 h-3" /> Chamada fechada
+                  </div>
+                )}
               </div>
 
               {ev.description && (
@@ -483,6 +505,24 @@ export const ObpcAdminView: React.FC = () => {
                   placeholder="Ex: OBPC Cajuru"
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1 block">
+                  Igreja da chamada fechada <span className="text-slate-400 font-normal">(opcional)</span>
+                </label>
+                <select
+                  value={form.fixedChurchId}
+                  onChange={(e) => setForm({ ...form, fixedChurchId: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">— Sem (check-in livre) —</option>
+                  {adminCongregations.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Se definir, o QR do evento vira chamada fechada só dessa igreja.
+                </p>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 mb-1 block">Descrição</label>

@@ -18,6 +18,7 @@ interface EventInfo {
   time?: string | null;
   location?: string | null;
   hostChurch?: string | null;
+  fixedChurch?: { id: string; name: string } | null;
   tenantName: string;
   tenantLogo?: string | null;
   status: "ABERTO" | "ENCERRADO" | "CANCELADO";
@@ -37,7 +38,7 @@ interface Congregation {
   address: string | null;
 }
 
-type Step = "loading" | "ready" | "searching" | "selected" | "registering" | "simple" | "confirmed" | "denied" | "already";
+type Step = "loading" | "ready" | "searching" | "selected" | "registering" | "simple" | "roster" | "confirmed" | "denied" | "already";
 
 const ROLES = [
   "PASTOR", "PRESBITERO", "EVANGELISTA", "MISSIONARIA", "DIACONO", "DIACONISA", "MEMBRO",
@@ -66,6 +67,16 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
   const [submitting, setSubmitting] = useState(false);
   const [confirmedAt, setConfirmedAt] = useState<string | null>(null);
   const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(false);
+
+  // Modo roster (chamada fechada por igreja)
+  const [roster, setRoster] = useState<{
+    church: { id: string; name: string };
+    total: number;
+    present: number;
+    members: { id: string; name: string; role: string; alreadyCheckedIn: boolean }[];
+  } | null>(null);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState("");
 
   // Carrega evento
   useEffect(() => {
@@ -121,6 +132,24 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
     })();
   }, [step, token, congregations.length]);
 
+  // Carrega roster (chamada fechada por igreja) quando entra em "roster"
+  const loadRoster = async () => {
+    setRosterLoading(true);
+    try {
+      const res = await fetch(`/api/obpc/public/event/${token}/church-members`);
+      const data = await res.json();
+      if (data.success) setRoster(data.data);
+      else setError(data.error || "Erro ao carregar chamada");
+    } catch (e: any) {
+      setError(e.message || "Erro");
+    } finally {
+      setRosterLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (step === "roster" && !roster) loadRoster();
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const confirm = async (memberId: string) => {
     setSubmitting(true);
     try {
@@ -141,6 +170,18 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
         return;
       }
       setConfirmedAt(data.data.createdAt);
+      // Se veio do roster, atualiza lista local e fica na tela
+      if (step === "roster" && roster) {
+        setRoster({
+          ...roster,
+          present: data.alreadyCheckedIn ? roster.present : roster.present + 1,
+          members: roster.members.map((m) =>
+            m.id === memberId ? { ...m, alreadyCheckedIn: true } : m
+          ),
+        });
+        setSubmitting(false);
+        return;
+      }
       setStep("confirmed");
     } catch (e: any) {
       setError(e.message || "Erro");
@@ -343,12 +384,23 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
         {/* Step: ready → escolher ação */}
         {step === "ready" && (
           <div className="space-y-3">
+            {/* MODO 1: Chamada por igreja (só se evento tem igreja fixa) */}
+            {event.fixedChurch && (
+              <button
+                onClick={() => setStep("roster")}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-4 rounded-2xl shadow-md flex items-center justify-center gap-2 text-lg transition"
+              >
+                <Church className="w-5 h-5" /> Sou da {event.fixedChurch.name}
+              </button>
+            )}
+            {/* MODO 2: Membro já cadastrado */}
             <button
               onClick={() => setStep("searching")}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-4 rounded-2xl shadow-md flex items-center justify-center gap-2 text-lg transition"
             >
               <User className="w-5 h-5" /> Já sou cadastrado
             </button>
+            {/* MODO 3: Cadastro livre */}
             <button
               onClick={() => setStep("registering")}
               className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-4 px-4 rounded-2xl shadow-sm border-2 border-slate-200 flex items-center justify-center gap-2 text-lg transition"
@@ -647,6 +699,99 @@ export const ObpcCheckinView: React.FC<{ token: string }> = ({ token }) => {
               {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
               Registrar e confirmar
             </button>
+            <button
+              onClick={() => setStep("ready")}
+              className="w-full text-slate-500 text-sm font-semibold py-2"
+            >
+              ← Voltar
+            </button>
+          </div>
+        )}
+
+        {/* Step: roster → chamada por igreja fixa */}
+        {step === "roster" && event?.fixedChurch && (
+          <div className="space-y-3">
+            <div className="bg-purple-50 border-2 border-purple-200 rounded-2xl p-4 text-center">
+              <Church className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+              <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">Chamada</p>
+              <p className="text-lg font-extrabold text-purple-900">{event.fixedChurch.name}</p>
+              {roster && (
+                <p className="text-xs text-purple-700 mt-1">
+                  {roster.present}/{roster.total} presentes
+                </p>
+              )}
+            </div>
+
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Buscar pelo seu nome..."
+                value={rosterSearch}
+                onChange={(e) => setRosterSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border-2 border-slate-200 rounded-2xl text-base focus:outline-none focus:border-purple-500"
+              />
+            </div>
+
+            {rosterLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 text-purple-600 animate-spin" />
+              </div>
+            ) : roster ? (
+              <>
+                <ul className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {roster.members
+                    .filter((m) => {
+                      const q = rosterSearch.toLowerCase().trim();
+                      if (!q) return true;
+                      return m.name.toLowerCase().includes(q);
+                    })
+                    .map((m) => (
+                      <li key={m.id}>
+                        <button
+                          onClick={() => !m.alreadyCheckedIn && !submitting && confirm(m.id)}
+                          disabled={m.alreadyCheckedIn || submitting}
+                          className={`w-full border-2 rounded-2xl p-3 text-left flex items-center gap-3 transition ${
+                            m.alreadyCheckedIn
+                              ? "bg-emerald-50 border-emerald-200 opacity-70 cursor-not-allowed"
+                              : "bg-white border-slate-200 hover:border-purple-500"
+                          }`}
+                        >
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                              m.alreadyCheckedIn ? "bg-emerald-200 text-emerald-700" : "bg-purple-100 text-purple-700"
+                            }`}
+                          >
+                            {m.alreadyCheckedIn ? <CheckCircle2 className="w-5 h-5" /> : m.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-800 truncate">{m.name}</p>
+                            <p className="text-xs text-slate-500 truncate">{m.role}</p>
+                          </div>
+                          {m.alreadyCheckedIn && (
+                            <span className="text-xs font-bold text-emerald-700">PRESENTE</span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+                {rosterSearch && roster.members.filter((m) => m.name.toLowerCase().includes(rosterSearch.toLowerCase())).length === 0 && (
+                  <p className="text-center text-slate-500 text-sm py-4">
+                    Ninguém encontrado com "{rosterSearch}"
+                  </p>
+                )}
+                <p className="text-xs text-slate-500 text-center pt-2">
+                  Toque no seu nome pra marcar presença. Não aparece?{" "}
+                  <button onClick={() => setStep("registering")} className="text-purple-600 underline font-semibold">
+                    Faça o cadastro
+                  </button>
+                </p>
+              </>
+            ) : (
+              <p className="text-center text-slate-500 text-sm py-4">{error || "Carregando..."}</p>
+            )}
+
             <button
               onClick={() => setStep("ready")}
               className="w-full text-slate-500 text-sm font-semibold py-2"
