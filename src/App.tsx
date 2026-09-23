@@ -125,6 +125,7 @@ function AppInner() {
 
   /**
    * Carrega tudo em paralelo. Se QUALQUER falhar (ex.: token expirou), aborta.
+   * v1.3.6-hotfix: renomeou church->churchName no destructuring
    */
   const loadAll = useCallback(async () => {
     setLoadingData(true);
